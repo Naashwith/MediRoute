@@ -1,1 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carepath Crew</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Top bar, visible after login -->
+<header class="bar" id="bar" hidden>
+  <div class="bar-brand">Carepath Crew</div>
+  <div class="bar-who">
+    <span id="barName">Crew member</span>
+    <span class="bar-unit" id="barUnit"></span>
+    <span class="pill" id="barStatus">Available</span>
+    <button class="link" id="logoutBtn" type="button">Sign out</button>
+  </div>
+</header>
+
+<!-- 1. Authentication -->
+<main class="screen auth" id="auth">
+  <aside class="auth-side">
+    <h1>Carepath Crew</h1>
+    <p>Sign in to see your unit, set your status and receive the next emergency assignment.</p>
+    <p class="muted-light">For ambulance compounders and attendants registered with a dispatch centre.</p>
+  </aside>
+
+  <section class="auth-main">
+    <div class="tabs" role="tablist">
+      <button role="tab" class="tab on" id="tabLogin" aria-selected="true" type="button">Sign in</button>
+      <button role="tab" class="tab" id="tabSignup" aria-selected="false" type="button">Create account</button>
+    </div>
+
+    <form id="loginForm" class="form" novalidate>
+      <label>Crew ID or email
+        <input name="id" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <p class="hint small">Trying the build? Use crew ID demo and password demo123.</p>
+      <p class="msg" id="loginMsg" role="alert"></p>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+
+    <form id="signupForm" class="form" novalidate hidden>
+      <div class="two">
+        <label>Full name<input name="name" required></label>
+        <label>Crew ID<input name="crewId" placeholder="as issued by your service" required></label>
+      </div>
+      <div class="two">
+        <label>Mobile number<input name="phone" type="tel" required></label>
+        <label>Email<input name="email" type="email" required></label>
+      </div>
+      <div class="two">
+        <label>Ambulance unit number<input name="unit" placeholder="e.g. TN-09-AMB-114" required></label>
+        <label>Role
+          <select name="role">
+            <option>Compounder</option>
+            <option>Emergency medical technician</option>
+            <option>Nursing attendant</option>
+          </select>
+        </label>
+      </div>
+      <div class="two">
+        <label>Password<input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
+        <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required></label>
+      </div>
+      <p class="msg" id="signupMsg" role="alert"></p>
+      <button class="btn primary" type="submit">Create account</button>
+    </form>
+  </section>
+</main>
+
+<!-- 2. Dashboard with activity status -->
+<main class="screen" id="dash" hidden>
+  <div class="dash-grid">
+    <section class="panel">
+      <h2>Your activity status</h2>
+      <p class="hint">Dispatch only assigns emergencies to crews who are available.</p>
+      <div class="status-set" id="statusSet">
+        <button type="button" data-s="available" class="st on">Available</button>
+        <button type="button" data-s="break" class="st">On break</button>
+        <button type="button" data-s="offline" class="st">Off duty</button>
+      </div>
+      <p class="waiting" id="waitLine">Waiting for the next request from dispatch.</p>
+      <button class="btn danger" id="simBtn" type="button">Simulate incoming request</button>
+      <p class="hint small">Test control for this build. It will be replaced by the live SOS feed.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Today</h2>
+      <dl class="facts">
+        <div><dt>Trips completed</dt><dd id="tripCount">0</dd></div>
+        <div><dt>Shift started</dt><dd id="shiftStart">-</dd></div>
+        <div><dt>Unit</dt><dd id="factUnit">-</dd></div>
+        <div><dt>Role</dt><dd id="factRole">-</dd></div>
+      </dl>
+      <div class="loc-row">
+        <span id="locState">Location not enabled.</span>
+        <button class="link dark" id="locBtn" type="button">Enable location</button>
+      </div>
+    </section>
+
+    <section class="panel wide">
+      <h2>Activity log</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </div>
+</main>
+
+<!-- Base screen: live tracking, address and ETA stay here for the whole trip -->
+<main class="screen trip" id="trip" hidden>
+  <div class="trip-head">
+    <div>
+      <p class="phase" id="phaseLine">Heading to patient</p>
+      <h2 id="destTitle">Pickup location</h2>
+    </div>
+    <span class="pill hot" id="reqPriority">Priority 1</span>
+  </div>
+  <p class="banner empty" id="banner"></p>
+
+  <div class="track-grid">
+    <section class="track-main">
+      <div class="map big" id="mapMain"></div>
+      <div class="progress"><div class="fill" id="progFill"></div></div>
+      <div class="eta-row">
+        <div><strong id="etaMain">--</strong><span>min to destination</span></div>
+        <div><strong id="distMain">--</strong><span>km remaining</span></div>
+        <div class="gps"><span id="gpsLine">GPS not available. Route position is simulated.</span></div>
+      </div>
+      <p class="hint small">The route drawing and moving marker are a stand-in until the map is integrated. The GPS reading is the real device location.</p>
+    </section>
+
+    <aside class="track-side">
+      <div class="actions col">
+        <button class="btn primary" id="mainAction" type="button" disabled>Patient received</button>
+        <p class="action-hint" id="actionHint"></p>
+        <button class="btn ghost small" id="skipBtn" type="button">Test control: jump to arrival</button>
+      </div>
+      <div class="dest-card">
+        <dl class="facts stack" id="destFacts"></dl>
+        <p class="chip" id="informChip" hidden></p>
+        <details id="noticeBox" hidden>
+          <summary>View message sent to the hospital</summary>
+          <pre id="noticeText"></pre>
+        </details>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- Temporary panel: patient details -->
+<div class="sheet-back" id="sheetBack" hidden></div>
+
+<aside class="sheet" id="intakeSheet" hidden role="dialog" aria-labelledby="intakeTitle">
+  <div class="sheet-top">
+    <h2 id="intakeTitle">Patient symptoms and requirements</h2>
+    <button class="link dark sheet-hide" type="button">Back to map</button>
+  </div>
+  <div class="profile-note" id="profileNote">
+    Patient profile: not linked. If the patient is signed in, their saved details will fill in here.
+  </div>
+  <form id="intakeForm" class="form" novalidate>
+    <div class="three">
+      <label>Patient name<input name="pname" placeholder="Unknown if not stated"></label>
+      <label>Age<input name="age" type="number" min="0" max="120"></label>
+      <label>Sex
+        <select name="sex"><option value="">Not stated</option><option>Female</option><option>Male</option><option>Other</option></select>
+      </label>
+    </div>
+    <label>Main complaint and symptoms
+      <textarea name="symptoms" rows="3" required placeholder="Chest pain since 20 minutes, sweating, breathless"></textarea>
+    </label>
+    <div class="four">
+      <label>Pulse (bpm)<input name="pulse" type="number"></label>
+      <label>Blood pressure<input name="bp" placeholder="120/80"></label>
+      <label>SpO2 (%)<input name="spo2" type="number" max="100"></label>
+      <label>Temperature (C)<input name="temp" type="number" step="0.1"></label>
+    </div>
+    <label>Consciousness
+      <select name="avpu">
+        <option>Alert</option><option>Responds to voice</option><option>Responds to pain</option><option>Unresponsive</option>
+      </select>
+    </label>
+    <fieldset>
+      <legend>Hospital requirements</legend>
+      <div class="checks">
+        <label><input type="checkbox" name="need" value="Cardiac care"> Cardiac care</label>
+        <label><input type="checkbox" name="need" value="Trauma and orthopaedics"> Trauma and orthopaedics</label>
+        <label><input type="checkbox" name="need" value="Neurology"> Neurology</label>
+        <label><input type="checkbox" name="need" value="ICU bed"> ICU bed</label>
+        <label><input type="checkbox" name="need" value="Ventilator"> Ventilator</label>
+        <label><input type="checkbox" name="need" value="Blood bank"> Blood bank</label>
+        <label><input type="checkbox" name="need" value="Burns unit"> Burns unit</label>
+        <label><input type="checkbox" name="need" value="Maternity"> Maternity</label>
+      </div>
+    </fieldset>
+    <label>Treatment given on board
+      <textarea name="given" rows="2" placeholder="Oxygen at 4 L/min, aspirin 300 mg"></textarea>
+    </label>
+    <p class="msg" id="intakeMsg" role="alert"></p>
+    <button class="btn primary" type="submit">Find the best hospital</button>
+  </form>
+</aside>
+
+<!-- Temporary panel: hospital choice -->
+<aside class="sheet" id="hospitalSheet" hidden role="dialog" aria-labelledby="hospTitle">
+  <div class="sheet-top">
+    <h2 id="hospTitle">Choose the hospital</h2>
+    <button class="link dark sheet-hide" type="button">Back to map</button>
+  </div>
+  <div class="map short" id="mapHospital"></div>
+  <div class="eta"><strong id="etaHospital">--</strong><span>minutes to hospital</span><span id="distHospital"></span></div>
+  <div class="hrow"><h3 id="hName"></h3><span class="pill" id="matchPill">Best match</span></div>
+  <p class="hint" id="hAddr"></p>
+  <dl class="facts stack" id="hFacts"></dl>
+  <p class="hint">Locking the hospital starts the journey and informs its casualty desk automatically.</p>
+  <div class="actions">
+    <button class="btn primary" id="startHospitalBtn" type="button">Lock hospital and start journey</button>
+  </div>
+  <h3 class="sub">Other options nearby</h3>
+  <ul class="alts" id="alts"></ul>
+</aside>
+
+<!-- Arrival popup -->
+<div class="overlay" id="doneBox" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+    <h2 id="doneTitle">Ride completed?</h2>
+    <p id="doneText"></p>
+    <div class="actions">
+      <button class="btn primary" id="doneYes" type="button">Yes, ride completed</button>
+      <button class="btn ghost" id="doneNo" type="button">Not yet</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
 

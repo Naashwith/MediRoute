@@ -1,328 +1,568 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus | Modern SaaS Platform</title>
-    <!-- Google Fonts: Inter -->
+
+    <title>MediRoute | Healthcare Portal</title>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tailwind Configuration -->
-    <script>
-        tailwind.config = {
-            darkMode: 'media', // Respects system preference
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        brand: {
-                            50: '#eef2ff',
-                            100: '#e0e7ff',
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                            700: '#4338ca',
-                            900: '#312e81',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet">
+
     <style>
-        /* Custom animations and base styles */
+        :root {
+            --bg: #07111f;
+            --card: #101e30;
+            --text: #f4f8ff;
+            --muted: #91a4bb;
+            --cyan: #38d9f5;
+            --green: #45e0ae;
+            --purple: #a78bfa;
+            --border: rgba(255, 255, 255, 0.09);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            -webkit-font-smoothing: antialiased;
-        }
-        
-        .fade-in-up {
-            animation: fadeInUp 0.8s ease-out forwards;
-            opacity: 0;
-            transform: translateY(20px);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
-        .delay-100 { animation-delay: 100ms; }
-        .delay-200 { animation-delay: 200ms; }
-        .delay-300 { animation-delay: 300ms; }
+        /* Background decoration */
 
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
+        body::before {
+            content: "";
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            background: rgba(56, 217, 245, 0.09);
+            filter: blur(120px);
+            border-radius: 50%;
+            top: -250px;
+            left: -150px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            width: 500px;
+            height: 500px;
+            background: rgba(167, 139, 250, 0.08);
+            filter: blur(120px);
+            border-radius: 50%;
+            bottom: -200px;
+            right: -100px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Navigation */
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 25px 8%;
+            border-bottom: 1px solid var(--border);
+            background: rgba(7, 17, 31, 0.75);
+            backdrop-filter: blur(16px);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 45px;
+            height: 45px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #38d9f5, #45e0ae);
+            color: #07111f;
+            font-size: 27px;
+            font-weight: 800;
+            border-radius: 14px;
+            box-shadow: 0 0 25px rgba(56, 217, 245, 0.2);
+        }
+
+        .brand h2 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        .brand h2 span {
+            color: var(--cyan);
+        }
+
+        .nav-status {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--green);
+        }
+
+        /* Hero section */
+
+        .hero {
+            text-align: center;
+            padding: 90px 20px 55px;
+            max-width: 950px;
+            margin: auto;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(56, 217, 245, 0.25);
+            background: rgba(56, 217, 245, 0.07);
+            color: var(--cyan);
+            padding: 9px 16px;
+            border-radius: 50px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            margin-bottom: 28px;
+        }
+
+        .hero h1 {
+            font-size: clamp(38px, 6vw, 70px);
+            line-height: 1.12;
+            letter-spacing: -3px;
+            font-weight: 800;
+            margin-bottom: 24px;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(90deg, #38d9f5, #45e0ae);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero p {
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Dashboard heading */
+
+        .section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: end;
+            margin-bottom: 25px;
+            gap: 15px;
+        }
+
+        .section-heading h2 {
+            font-size: 23px;
+            letter-spacing: -0.7px;
+        }
+
+        .section-heading p {
+            color: var(--muted);
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .section-tag {
+            color: var(--muted);
+            font-size: 11px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 12px;
+            white-space: nowrap;
+        }
+
+        /* Interface cards */
+
+        .dashboard {
+            width: min(1100px, 86%);
+            margin: 0 auto 100px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 22px;
+        }
+
+        .card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 330px;
+            padding: 28px;
+            overflow: hidden;
+            background: linear-gradient(
+                145deg,
+                rgba(20, 37, 57, 0.98),
+                rgba(12, 25, 41, 0.98)
+            );
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            transition: transform 0.3s ease,
+                        border-color 0.3s ease,
+                        box-shadow 0.3s ease;
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            top: -80px;
+            right: -80px;
+            background: var(--accent);
+            opacity: 0.12;
+            filter: blur(30px);
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+        }
+
+        .card:hover::before {
+            opacity: 0.25;
+        }
+
+        .compounder {
+            --accent: #38d9f5;
+        }
+
+        .patient {
+            --accent: #45e0ae;
+        }
+
+        .hospital {
+            --accent: #a78bfa;
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .card-icon {
+            width: 65px;
+            height: 65px;
+            display: grid;
+            place-items: center;
+            border-radius: 18px;
+            background: color-mix(in srgb, var(--accent) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+            font-size: 31px;
+        }
+
+        .card-number {
+            font-size: 12px;
+            color: var(--muted);
+            letter-spacing: 1px;
+        }
+
+        .card h3 {
+            font-size: 21px;
+            margin-bottom: 13px;
+            letter-spacing: -0.5px;
+        }
+
+        .card > p {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.9;
+            margin-bottom: 28px;
+            flex-grow: 1;
+        }
+
+        /* Navigation buttons */
+
+        .launch-btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 15px 17px;
+            text-decoration: none;
+            color: var(--accent);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+            background: color-mix(in srgb, var(--accent) 8%, transparent);
+            border-radius: 12px;
+            transition: background 0.25s ease, color 0.25s ease;
+        }
+
+        .launch-btn:hover {
+            background: var(--accent);
+            color: #07111f;
+        }
+
+        .launch-btn .arrow {
+            font-size: 20px;
+            transition: transform 0.25s ease;
+        }
+
+        .launch-btn:hover .arrow {
+            transform: translateX(5px);
+        }
+
+        /* Footer */
+
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 25px 8%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        footer strong {
+            color: var(--text);
+        }
+
+        .footer-right {
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+
+        /* Responsive layout */
+
+        @media (max-width: 850px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                min-height: 290px;
+            }
+
+            .hero {
+                padding-top: 65px;
+            }
+
+            .dashboard {
+                width: 90%;
+            }
+        }
+
+        @media (max-width: 500px) {
+            nav {
+                padding: 20px 5%;
+            }
+
+            .brand h2 {
+                font-size: 19px;
+            }
+
+            .nav-status {
+                font-size: 9px;
+            }
+
+            .hero h1 {
+                letter-spacing: -1.5px;
+            }
+
+            .section-heading {
+                align-items: start;
+                flex-direction: column;
+            }
+
+            footer {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .card {
+                padding: 24px;
             }
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 overflow-x-hidden selection:bg-brand-500 selection:text-white">
 
-    <!-- Navigation Header -->
-    <header id="navbar" class="fixed w-full top-0 z-50 transition-all duration-300 bg-transparent py-4">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center">
-                <!-- Logo -->
-                <div class="flex-shrink-0 flex items-center gap-2 cursor-pointer">
-                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    </div>
-                    <span class="font-bold text-xl tracking-tight">Nexus</span>
-                </div>
+<body>
 
-                <!-- Desktop Navigation -->
-                <nav class="hidden md:flex space-x-8 items-center">
-                    <a href="#features" class="text-sm font-medium text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400 transition-colors">Features</a>
-                    <a href="#testimonials" class="text-sm font-medium text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400 transition-colors">Testimonials</a>
-                    <a href="#pricing" class="text-sm font-medium text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400 transition-colors">Pricing</a>
-                    <a href="#" class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-full text-white bg-brand-600 hover:bg-brand-700 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5">
-                        Get Started
-                    </a>
-                </nav>
-
-                <!-- Mobile menu button -->
-                <div class="md:hidden flex items-center">
-                    <button id="mobile-menu-btn" class="text-slate-600 hover:text-brand-600 dark:text-slate-300 focus:outline-none p-2 rounded-md">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path id="menu-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                            <path id="close-icon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
+    <!-- Navigation -->
+    <nav>
+        <div class="brand">
+            <div class="brand-icon">+</div>
+            <h2>Medi<span>Route</span></h2>
         </div>
 
-        <!-- Mobile Navigation Menu -->
-        <div id="mobile-menu" class="hidden md:hidden bg-white dark:bg-slate-800 shadow-xl absolute top-full left-0 w-full border-t border-slate-100 dark:border-slate-700">
-            <div class="px-4 pt-2 pb-6 space-y-1">
-                <a href="#features" class="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 transition">Features</a>
-                <a href="#testimonials" class="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 transition">Testimonials</a>
-                <a href="#pricing" class="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 transition">Pricing</a>
-                <div class="mt-4 px-3">
-                    <a href="#" class="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-brand-600 hover:bg-brand-700 shadow-md">
-                        Get Started Free
-                    </a>
-                </div>
-            </div>
+        <div class="nav-status">
+            <span class="status-dot"></span>
+            Healthcare Portal
         </div>
+    </nav>
+
+    <!-- Hero -->
+    <header class="hero">
+
+        <div class="eyebrow">
+            <span>✦</span>
+            YOUR HEALTHCARE WORKSPACE
+        </div>
+
+        <h1>
+            Healthcare,<br>
+            <span>Connected.</span>
+        </h1>
+
+        <p>
+            Welcome to MediRoute. A unified digital workspace
+            connecting patients, compounders, and hospitals
+            through one seamless platform.
+        </p>
+
     </header>
 
-    <!-- Hero Section -->
-    <main>
-        <section class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-            <!-- Background Decoration -->
-            <div class="absolute inset-0 z-0">
-                <div class="absolute -top-24 -left-24 w-96 h-96 bg-brand-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:bg-brand-900 dark:opacity-20 animate-blob"></div>
-                <div class="absolute top-32 -right-24 w-96 h-96 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:bg-purple-900 dark:opacity-20 animate-blob animation-delay-2000"></div>
+    <!-- Interface Dashboard -->
+    <main class="dashboard">
+
+        <div class="section-heading">
+            <div>
+                <h2>Choose Your Interface</h2>
+                <p>Select a portal to continue to your workspace.</p>
             </div>
 
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-                <span class="fade-in-up inline-block py-1 px-3 rounded-full bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 text-sm font-semibold mb-6 border border-brand-100 dark:border-brand-800">
-                    ✨ Introducing Nexus 2.0
-                </span>
-                <h1 class="fade-in-up delay-100 text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-8 leading-tight">
-                    Build faster with <br class="hidden md:block"/>
-                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600">ultimate precision.</span>
-                </h1>
-                <p class="fade-in-up delay-200 mt-4 max-w-2xl mx-auto text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-10">
-                    Streamline your workflow, collaborate seamlessly, and launch projects in record time. The all-in-one platform for modern teams.
+            <div class="section-tag">
+                03 INTERFACES
+            </div>
+        </div>
+
+        <div class="cards">
+
+            <!-- Compounder Interface -->
+            <article class="card compounder">
+
+                <div class="card-top">
+                    <div class="card-icon">💊</div>
+                    <span class="card-number">01 / PORTAL</span>
+                </div>
+
+                <h3>Compounder Interface</h3>
+
+                <p>
+                    Access the compounder workspace to manage
+                    prescriptions, medicines, and dispensing workflows.
                 </p>
-                <div class="fade-in-up delay-300 flex flex-col sm:flex-row justify-center gap-4">
-                    <a href="#" class="inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-base font-semibold rounded-full text-white bg-brand-600 hover:bg-brand-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
-                        Start for free
-                    </a>
-                    <a href="#features" class="inline-flex items-center justify-center px-8 py-3.5 border-2 border-slate-200 dark:border-slate-700 text-base font-semibold rounded-full text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
-                        <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Watch Demo
-                    </a>
+
+                <a class="launch-btn"
+                   href="./Compounder/compounder_interface.html">
+
+                    <span>Open Compounder Interface</span>
+                    <span class="arrow">→</span>
+
+                </a>
+
+            </article>
+
+            <!-- Patient Interface -->
+            <article class="card patient">
+
+                <div class="card-top">
+                    <div class="card-icon">🧑‍⚕️</div>
+                    <span class="card-number">02 / PORTAL</span>
                 </div>
 
-                <!-- Dashboard Mockup Image -->
-                <div class="fade-in-up delay-300 mt-16 md:mt-24 relative max-w-5xl mx-auto">
-                    <div class="rounded-2xl border border-slate-200/50 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50 backdrop-blur-xl p-2 md:p-4 shadow-2xl">
-                        <img src="https://placehold.co/1200x600/f8fafc/334155?text=Application+Dashboard+Preview" alt="Dashboard Preview" class="rounded-xl w-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
-                    </div>
+                <h3>Patient Interface</h3>
+
+                <p>
+                    A dedicated space for patients to access their
+                    healthcare services and manage their interactions.
+                </p>
+
+                <a class="launch-btn"
+                   href="./Patient/patient_interface.html">
+
+                    <span>Open Patient Interface</span>
+                    <span class="arrow">→</span>
+
+                </a>
+
+            </article>
+
+            <!-- Hospital Interface -->
+            <article class="card hospital">
+
+                <div class="card-top">
+                    <div class="card-icon">🏥</div>
+                    <span class="card-number">03 / PORTAL</span>
                 </div>
-            </div>
-        </section>
 
-        <!-- Features Section -->
-        <section id="features" class="py-20 bg-white dark:bg-slate-800">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="text-center max-w-3xl mx-auto mb-16">
-                    <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Everything you need to succeed</h2>
-                    <p class="text-lg text-slate-600 dark:text-slate-400">We've built a platform that removes friction so your team can focus on what they do best: creating amazing products.</p>
-                </div>
+                <h3>Hospital Interface</h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                    <!-- Feature 1 -->
-                    <div class="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-shadow duration-300">
-                        <div class="w-12 h-12 rounded-xl bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center mb-6 text-brand-600 dark:text-brand-400">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Lightning Fast</h3>
-                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed">Built on modern architecture ensuring your data loads instantly. Say goodbye to loading spinners.</p>
-                    </div>
+                <p>
+                    A centralized workspace for hospital operations,
+                    coordination, and healthcare management.
+                </p>
 
-                    <!-- Feature 2 -->
-                    <div class="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-shadow duration-300">
-                        <div class="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center mb-6 text-purple-600 dark:text-purple-400">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Bank-grade Security</h3>
-                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed">Your data is encrypted at rest and in transit. We comply with industry standards to keep you safe.</p>
-                    </div>
+                <a class="launch-btn"
+                   href="./Hospital/hospital_interface.html">
 
-                    <!-- Feature 3 -->
-                    <div class="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-shadow duration-300">
-                        <div class="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/50 flex items-center justify-center mb-6 text-green-600 dark:text-green-400">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Real-time Sync</h3>
-                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed">Work collaboratively with your team. Changes are synced across all your devices in real-time.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
+                    <span>Open Hospital Interface</span>
+                    <span class="arrow">→</span>
 
-        <!-- CTA Section -->
-        <section class="py-20 relative overflow-hidden">
-            <div class="absolute inset-0 bg-brand-600 dark:bg-brand-900"></div>
-            <!-- Abstract background pattern -->
-            <svg class="absolute inset-0 w-full h-full text-brand-500 dark:text-brand-800 opacity-50" fill="currentColor" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <polygon points="0,100 100,0 100,100"/>
-            </svg>
-            
-            <div class="max-w-4xl mx-auto px-4 relative z-10 text-center">
-                <h2 class="text-3xl md:text-5xl font-bold text-white mb-6">Ready to transform your workflow?</h2>
-                <p class="text-brand-100 text-lg md:text-xl mb-10">Join over 10,000 teams who have already switched to Nexus and increased their productivity by 40%.</p>
-                <button class="bg-white text-brand-600 hover:bg-slate-50 font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 text-lg">
-                    Start Your Free Trial
-                </button>
-                <p class="mt-6 text-sm text-brand-200">No credit card required. 14-day free trial.</p>
-            </div>
-        </section>
+                </a>
+
+            </article>
+
+        </div>
+
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pt-16 pb-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
-                <div class="col-span-2 lg:col-span-2">
-                    <div class="flex items-center gap-2 mb-4">
-                        <div class="w-6 h-6 rounded bg-brand-600 flex items-center justify-center">
-                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        </div>
-                        <span class="font-bold text-lg text-slate-900 dark:text-white">Nexus</span>
-                    </div>
-                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-6 max-w-sm">
-                        Making project management and collaboration easier for teams around the globe. Build better, together.
-                    </p>
-                    <div class="flex space-x-4">
-                        <!-- Social Icons -->
-                        <a href="#" class="text-slate-400 hover:text-brand-600 transition-colors">
-                            <span class="sr-only">Twitter</span>
-                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"/></svg>
-                        </a>
-                        <a href="#" class="text-slate-400 hover:text-brand-600 transition-colors">
-                            <span class="sr-only">GitHub</span>
-                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
-                        </a>
-                    </div>
-                </div>
-                
-                <div>
-                    <h4 class="font-semibold text-slate-900 dark:text-white mb-4">Product</h4>
-                    <ul class="space-y-3">
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Features</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Integrations</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Pricing</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Changelog</a></li>
-                    </ul>
-                </div>
+    <footer>
+        <div>
+            <strong>MediRoute</strong> &nbsp;|&nbsp;
+            Connecting Care, Simplifying Health.
+        </div>
 
-                <div>
-                    <h4 class="font-semibold text-slate-900 dark:text-white mb-4">Company</h4>
-                    <ul class="space-y-3">
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">About Us</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Careers</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Blog</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Contact</a></li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h4 class="font-semibold text-slate-900 dark:text-white mb-4">Legal</h4>
-                    <ul class="space-y-3">
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Privacy Policy</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Terms of Service</a></li>
-                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Cookie Policy</a></li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="border-t border-slate-200 dark:border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                <p class="text-sm text-slate-500 dark:text-slate-400">
-                    &copy; 2023 Nexus Inc. All rights reserved.
-                </p>
-                <div class="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
-                    <span>Designed with</span>
-                    <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
-                </div>
-            </div>
+        <div class="footer-right">
+            Designed for Better Healthcare
         </div>
     </footer>
 
-    <!-- Interactive JavaScript -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // 1. Mobile Menu Toggle Logic
-            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-            const mobileMenu = document.getElementById('mobile-menu');
-            const menuIcon = document.getElementById('menu-icon');
-            const closeIcon = document.getElementById('close-icon');
-
-            mobileMenuBtn.addEventListener('click', () => {
-                // Toggle mobile menu visibility
-                mobileMenu.classList.toggle('hidden');
-                
-                // Toggle icons (hamburger vs X)
-                menuIcon.classList.toggle('hidden');
-                closeIcon.classList.toggle('hidden');
-            });
-
-            // Close mobile menu when a link is clicked
-            const mobileLinks = mobileMenu.querySelectorAll('a');
-            mobileLinks.forEach(link => {
-                link.addEventListener('click', () => {
-                    mobileMenu.classList.add('hidden');
-                    menuIcon.classList.remove('hidden');
-                    closeIcon.classList.add('hidden');
-                });
-            });
-
-            // 2. Navbar Scroll Effect Logic
-            const navbar = document.getElementById('navbar');
-            
-            const handleScroll = () => {
-                if (window.scrollY > 20) {
-                    // Scrolled state
-                    navbar.classList.add('bg-white/90', 'dark:bg-slate-900/90', 'backdrop-blur-md', 'shadow-sm', 'py-3');
-                    navbar.classList.remove('bg-transparent', 'py-4');
-                } else {
-                    // Top state
-                    navbar.classList.add('bg-transparent', 'py-4');
-                    navbar.classList.remove('bg-white/90', 'dark:bg-slate-900/90', 'backdrop-blur-md', 'shadow-sm', 'py-3');
-                }
-            };
-
-            // Listen to scroll events
-            window.addEventListener('scroll', handleScroll);
-            // Run once on load to catch initial state if page is refreshed down the page
-            handleScroll();
-        });
-    </script>
 </body>
 </html>

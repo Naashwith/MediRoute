@@ -1,249 +1,328 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Flappy Clone</title>
-<style>
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; display: grid; place-items: center;
-    background: linear-gradient(180deg,#7dd3fc,#bae6fd 60%,#fef9c3);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    color: #0c4a6e;
-  }
-  .wrap { text-align: center; padding: 16px; }
-  h1 { margin: 0 0 8px; font-size: 1.8rem; letter-spacing: -0.02em; }
-  h1 span { background:#facc15; padding: 2px 10px; border-radius: 999px; border: 3px solid #0c4a6e; }
-  #game {
-    border: 4px solid #0c4a6e; border-radius: 18px;
-    box-shadow: 0 12px 30px rgba(12,74,110,.25);
-    background: #87ceeb; touch-action: none; cursor: pointer;
-    max-width: 92vw; height: auto;
-  }
-  .hud { display: flex; gap: 10px; justify-content: center; margin: 12px 0; }
-  .pill {
-    background: #fff; border: 2px solid #0c4a6e; border-radius: 999px;
-    padding: 6px 14px; font-weight: 800;
-  }
-  button {
-    padding: 10px 18px; border-radius: 12px; border: 3px solid #0c4a6e;
-    background: #facc15; font-weight: 800; font-size: 1rem; cursor: pointer;
-  }
-  button:active { transform: scale(.97); }
-  .hint { opacity: .7; font-size: .9rem; margin-top: 8px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus | Modern SaaS Platform</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            darkMode: 'media', // Respects system preference
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom animations and base styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .fade-in-up {
+            animation: fadeInUp 0.8s ease-out forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
 </head>
-<body>
-<div class="wrap">
-  <h1>🐤 <span>Flappy Clone</span></h1>
-  <div class="hud">
-    <div class="pill">Score: <span id="score">0</span></div>
-    <div class="pill">Best: <span id="best">0</span></div>
-  </div>
-  <canvas id="game" width="400" height="600"></canvas>
-  <div style="margin-top:12px">
-    <button id="restartBtn">↻ Restart</button>
-  </div>
-  <div class="hint">Press Space / Click / Tap to flap</div>
-</div>
-<script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 overflow-x-hidden selection:bg-brand-500 selection:text-white">
 
-const W = canvas.width, H = canvas.height;
-let best = +(localStorage.getItem('flappy-best') || 0);
-bestEl.textContent = best;
+    <!-- Navigation Header -->
+    <header id="navbar" class="fixed w-full top-0 z-50 transition-all duration-300 bg-transparent py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-lg">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight">Nexus</span>
+                </div>
 
-let bird, pipes, score, frame, dead, started;
+                <!-- Desktop Navigation -->
+                <nav class="hidden md:flex space-x-8 items-center">
+                    <a href="#features" class="text-sm font-medium text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400 transition-colors">Features</a>
+                    <a href="#testimonials" class="text-sm font-medium text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400 transition-colors">Testimonials</a>
+                    <a href="#pricing" class="text-sm font-medium text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400 transition-colors">Pricing</a>
+                    <a href="#" class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-full text-white bg-brand-600 hover:bg-brand-700 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5">
+                        Get Started
+                    </a>
+                </nav>
 
-function reset() {
-  bird = { x: 80, y: H/2, vy: 0, r: 14 };
-  pipes = [];
-  score = 0;
-  frame = 0;
-  dead = false;
-  started = false;
-  scoreEl.textContent = '0';
-}
+                <!-- Mobile menu button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-slate-600 hover:text-brand-600 dark:text-slate-300 focus:outline-none p-2 rounded-md">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path id="menu-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                            <path id="close-icon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
 
-const GRAV = 0.28;
-const FLAP = -5.8;
-const MAX_FALL = 6;
-const PIPE_W = 62;
-const GAP = 155;
-const SPEED = 1.5;
+        <!-- Mobile Navigation Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white dark:bg-slate-800 shadow-xl absolute top-full left-0 w-full border-t border-slate-100 dark:border-slate-700">
+            <div class="px-4 pt-2 pb-6 space-y-1">
+                <a href="#features" class="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 transition">Features</a>
+                <a href="#testimonials" class="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 transition">Testimonials</a>
+                <a href="#pricing" class="block px-3 py-3 rounded-md text-base font-medium text-slate-700 hover:text-brand-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 transition">Pricing</a>
+                <div class="mt-4 px-3">
+                    <a href="#" class="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-brand-600 hover:bg-brand-700 shadow-md">
+                        Get Started Free
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
 
-function flap() {
-  if (dead) { reset(); loop(); return; }
-  started = true;
-  bird.vy = FLAP;
-}
+    <!-- Hero Section -->
+    <main>
+        <section class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+            <!-- Background Decoration -->
+            <div class="absolute inset-0 z-0">
+                <div class="absolute -top-24 -left-24 w-96 h-96 bg-brand-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:bg-brand-900 dark:opacity-20 animate-blob"></div>
+                <div class="absolute top-32 -right-24 w-96 h-96 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:bg-purple-900 dark:opacity-20 animate-blob animation-delay-2000"></div>
+            </div>
 
-function spawnPipe() {
-  const margin = 60;
-  const gapY = margin + Math.random() * (H - GAP - margin*2 - 80);
-  pipes.push({ x: W, gapY, passed: false });
-}
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+                <span class="fade-in-up inline-block py-1 px-3 rounded-full bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 text-sm font-semibold mb-6 border border-brand-100 dark:border-brand-800">
+                    ✨ Introducing Nexus 2.0
+                </span>
+                <h1 class="fade-in-up delay-100 text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-8 leading-tight">
+                    Build faster with <br class="hidden md:block"/>
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600">ultimate precision.</span>
+                </h1>
+                <p class="fade-in-up delay-200 mt-4 max-w-2xl mx-auto text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-10">
+                    Streamline your workflow, collaborate seamlessly, and launch projects in record time. The all-in-one platform for modern teams.
+                </p>
+                <div class="fade-in-up delay-300 flex flex-col sm:flex-row justify-center gap-4">
+                    <a href="#" class="inline-flex items-center justify-center px-8 py-3.5 border border-transparent text-base font-semibold rounded-full text-white bg-brand-600 hover:bg-brand-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
+                        Start for free
+                    </a>
+                    <a href="#features" class="inline-flex items-center justify-center px-8 py-3.5 border-2 border-slate-200 dark:border-slate-700 text-base font-semibold rounded-full text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                        <svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Watch Demo
+                    </a>
+                </div>
 
-function update() {
-  frame++;
-  if (!started) return;
-  bird.vy += GRAV;
-  if (bird.vy > MAX_FALL) bird.vy = MAX_FALL;
-  bird.y += bird.vy;
+                <!-- Dashboard Mockup Image -->
+                <div class="fade-in-up delay-300 mt-16 md:mt-24 relative max-w-5xl mx-auto">
+                    <div class="rounded-2xl border border-slate-200/50 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50 backdrop-blur-xl p-2 md:p-4 shadow-2xl">
+                        <img src="https://placehold.co/1200x600/f8fafc/334155?text=Application+Dashboard+Preview" alt="Dashboard Preview" class="rounded-xl w-full object-cover border border-slate-200 dark:border-slate-700 shadow-sm" />
+                    </div>
+                </div>
+            </div>
+        </section>
 
-  if (frame % 125 === 0) spawnPipe();
+        <!-- Features Section -->
+        <section id="features" class="py-20 bg-white dark:bg-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Everything you need to succeed</h2>
+                    <p class="text-lg text-slate-600 dark:text-slate-400">We've built a platform that removes friction so your team can focus on what they do best: creating amazing products.</p>
+                </div>
 
-  for (const p of pipes) {
-    p.x -= SPEED;
-    if (!p.passed && p.x + PIPE_W < bird.x) {
-      p.passed = true;
-      score++;
-      scoreEl.textContent = score;
-      if (score > best) {
-        best = score;
-        bestEl.textContent = best;
-        localStorage.setItem('flappy-best', best);
-      }
-    }
-  }
-  pipes = pipes.filter(p => p.x + PIPE_W > -10);
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                    <!-- Feature 1 -->
+                    <div class="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-shadow duration-300">
+                        <div class="w-12 h-12 rounded-xl bg-brand-100 dark:bg-brand-900/50 flex items-center justify-center mb-6 text-brand-600 dark:text-brand-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Lightning Fast</h3>
+                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed">Built on modern architecture ensuring your data loads instantly. Say goodbye to loading spinners.</p>
+                    </div>
 
-  // collisions
-  if (bird.y + bird.r >= H - 40 || bird.y - bird.r <= 0) return die();
-  for (const p of pipes) {
-    const inX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + PIPE_W;
-    if (inX && (bird.y - bird.r < p.gapY || bird.y + bird.r > p.gapY + GAP)) return die();
-  }
-}
+                    <!-- Feature 2 -->
+                    <div class="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-shadow duration-300">
+                        <div class="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center mb-6 text-purple-600 dark:text-purple-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Bank-grade Security</h3>
+                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed">Your data is encrypted at rest and in transit. We comply with industry standards to keep you safe.</p>
+                    </div>
 
-function die() {
-  dead = true;
-}
+                    <!-- Feature 3 -->
+                    <div class="p-8 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-shadow duration-300">
+                        <div class="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/50 flex items-center justify-center mb-6 text-green-600 dark:text-green-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-3">Real-time Sync</h3>
+                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed">Work collaboratively with your team. Changes are synced across all your devices in real-time.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-function draw() {
-  // sky
-  const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#38bdf8'); g.addColorStop(1,'#e0f2fe');
-  ctx.fillStyle = g;
-  ctx.fillRect(0,0,W,H);
+        <!-- CTA Section -->
+        <section class="py-20 relative overflow-hidden">
+            <div class="absolute inset-0 bg-brand-600 dark:bg-brand-900"></div>
+            <!-- Abstract background pattern -->
+            <svg class="absolute inset-0 w-full h-full text-brand-500 dark:text-brand-800 opacity-50" fill="currentColor" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <polygon points="0,100 100,0 100,100"/>
+            </svg>
+            
+            <div class="max-w-4xl mx-auto px-4 relative z-10 text-center">
+                <h2 class="text-3xl md:text-5xl font-bold text-white mb-6">Ready to transform your workflow?</h2>
+                <p class="text-brand-100 text-lg md:text-xl mb-10">Join over 10,000 teams who have already switched to Nexus and increased their productivity by 40%.</p>
+                <button class="bg-white text-brand-600 hover:bg-slate-50 font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 text-lg">
+                    Start Your Free Trial
+                </button>
+                <p class="mt-6 text-sm text-brand-200">No credit card required. 14-day free trial.</p>
+            </div>
+        </section>
+    </main>
 
-  // clouds
-  ctx.fillStyle = 'rgba(255,255,255,.9)';
-  const cx = (frame*0.3) % (W+120);
-  for (let i=0;i<3;i++) {
-    const x = ((i*180 - cx) + W+120) % (W+120) - 60;
-    const y = 70 + i*55;
-    ctx.beginPath();
-    ctx.arc(x,y,22,0,7); ctx.arc(x+22,y+4,18,0,7); ctx.arc(x-22,y+4,16,0,7);
-    ctx.fill();
-  }
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pt-16 pb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
+                <div class="col-span-2 lg:col-span-2">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-6 h-6 rounded bg-brand-600 flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
+                        <span class="font-bold text-lg text-slate-900 dark:text-white">Nexus</span>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-6 max-w-sm">
+                        Making project management and collaboration easier for teams around the globe. Build better, together.
+                    </p>
+                    <div class="flex space-x-4">
+                        <!-- Social Icons -->
+                        <a href="#" class="text-slate-400 hover:text-brand-600 transition-colors">
+                            <span class="sr-only">Twitter</span>
+                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"/></svg>
+                        </a>
+                        <a href="#" class="text-slate-400 hover:text-brand-600 transition-colors">
+                            <span class="sr-only">GitHub</span>
+                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/></svg>
+                        </a>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-slate-900 dark:text-white mb-4">Product</h4>
+                    <ul class="space-y-3">
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Features</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Integrations</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Pricing</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Changelog</a></li>
+                    </ul>
+                </div>
 
-  // pipes
-  for (const p of pipes) {
-    ctx.fillStyle = '#22c55e';
-    ctx.strokeStyle = '#0c4a6e';
-    ctx.lineWidth = 3;
-    roundRect(p.x, 0, PIPE_W, p.gapY, 8); ctx.fill(); ctx.stroke();
-    roundRect(p.x, p.gapY+GAP, PIPE_W, H-p.gapY-GAP-40, 8); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#16a34a';
-    ctx.fillRect(p.x+6, Math.max(0,p.gapY-18), PIPE_W-12, 18);
-    ctx.fillRect(p.x+6, p.gapY+GAP, PIPE_W-12, 18);
-  }
+                <div>
+                    <h4 class="font-semibold text-slate-900 dark:text-white mb-4">Company</h4>
+                    <ul class="space-y-3">
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">About Us</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Careers</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Blog</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Contact</a></li>
+                    </ul>
+                </div>
 
-  // ground
-  ctx.fillStyle = '#fde68a';
-  ctx.fillRect(0, H-40, W, 40);
-  ctx.fillStyle = '#22c55e';
-  ctx.fillRect(0, H-40, W, 10);
-  ctx.fillStyle = 'rgba(12,74,110,.15)';
-  for (let x = -((frame*SPEED)%24); x<W; x+=24) ctx.fillRect(x, H-18, 12, 18);
+                <div>
+                    <h4 class="font-semibold text-slate-900 dark:text-white mb-4">Legal</h4>
+                    <ul class="space-y-3">
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Privacy Policy</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Terms of Service</a></li>
+                        <li><a href="#" class="text-sm text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-white transition">Cookie Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-slate-200 dark:border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-sm text-slate-500 dark:text-slate-400">
+                    &copy; 2023 Nexus Inc. All rights reserved.
+                </p>
+                <div class="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
+                    <span>Designed with</span>
+                    <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
+                </div>
+            </div>
+        </div>
+    </footer>
 
-  // bird
-  const bob = started ? 0 : Math.sin(frame*0.1)*6;
-  const by = bird.y + (started?0:bob);
-  ctx.save();
-  ctx.translate(bird.x, by);
-  ctx.rotate(Math.max(-0.4, Math.min(0.6, bird.vy*0.06)));
-  // body
-  ctx.fillStyle = '#facc15';
-  ctx.strokeStyle = '#0c4a6e'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(0,0,bird.r,0,7); ctx.fill(); ctx.stroke();
-  // eye
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(5,-4,6,0,7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#0c4a6e';
-  ctx.beginPath(); ctx.arc(7,-4,3,0,7); ctx.fill();
-  // beak
-  ctx.fillStyle = '#fb923c';
-  ctx.beginPath();
-  ctx.moveTo(10,2); ctx.lineTo(20,5); ctx.lineTo(10,9); ctx.closePath();
-  ctx.fill(); ctx.stroke();
-  // wing
-  ctx.fillStyle = '#fde68a';
-  ctx.beginPath(); ctx.ellipse(-4,5,8,5,-0.4,0,7); ctx.fill(); ctx.stroke();
-  ctx.restore();
+    <!-- Interactive JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Mobile Menu Toggle Logic
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const menuIcon = document.getElementById('menu-icon');
+            const closeIcon = document.getElementById('close-icon');
 
-  // overlays
-  if (!started && !dead) {
-    centerText('Tap / Space to start', H/2 - 60);
-    centerText('🐤', H/2 - 110, '40px');
-  }
-  if (dead) {
-    ctx.fillStyle = 'rgba(12,74,110,.55)';
-    ctx.fillRect(0,0,W,H);
-    centerText('💥 Game Over', H/2-40, '32px', '#fff');
-    centerText(`Score: ${score}`, H/2, '20px', '#fef9c3');
-    centerText('Tap / Space to retry', H/2+40, '16px', '#fff');
-  } else if (started) {
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#0c4a6e'; ctx.lineWidth = 4;
-    ctx.font = '800 42px system-ui';
-    ctx.textAlign = 'center';
-    ctx.strokeText(score, W/2, 70);
-    ctx.fillText(score, W/2, 70);
-  }
-}
+            mobileMenuBtn.addEventListener('click', () => {
+                // Toggle mobile menu visibility
+                mobileMenu.classList.toggle('hidden');
+                
+                // Toggle icons (hamburger vs X)
+                menuIcon.classList.toggle('hidden');
+                closeIcon.classList.toggle('hidden');
+            });
 
-function centerText(t, y, size='20px', color='#0c4a6e') {
-  ctx.font = `800 ${size} system-ui`;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = color;
-  ctx.fillText(t, W/2, y);
-}
+            // Close mobile menu when a link is clicked
+            const mobileLinks = mobileMenu.querySelectorAll('a');
+            mobileLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileMenu.classList.add('hidden');
+                    menuIcon.classList.remove('hidden');
+                    closeIcon.classList.add('hidden');
+                });
+            });
 
-function roundRect(x,y,w,h,r) {
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
-}
+            // 2. Navbar Scroll Effect Logic
+            const navbar = document.getElementById('navbar');
+            
+            const handleScroll = () => {
+                if (window.scrollY > 20) {
+                    // Scrolled state
+                    navbar.classList.add('bg-white/90', 'dark:bg-slate-900/90', 'backdrop-blur-md', 'shadow-sm', 'py-3');
+                    navbar.classList.remove('bg-transparent', 'py-4');
+                } else {
+                    // Top state
+                    navbar.classList.add('bg-transparent', 'py-4');
+                    navbar.classList.remove('bg-white/90', 'dark:bg-slate-900/90', 'backdrop-blur-md', 'shadow-sm', 'py-3');
+                }
+            };
 
-let raf;
-function loop() {
-  cancelAnimationFrame(raf);
-  function tick() {
-    update();
-    draw();
-    if (!dead) raf = requestAnimationFrame(tick);
-  }
-  tick();
-}
-
-window.addEventListener('keydown', e => {
-  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); if(dead){reset();loop();} else loop(); }
-});
-canvas.addEventListener('pointerdown', () => { const wasDead = dead; flap(); if(wasDead){reset(); started=true; loop();} });
-document.getElementById('restartBtn').onclick = () => { reset(); loop(); };
-
-reset();
-draw();
-</script>
+            // Listen to scroll events
+            window.addEventListener('scroll', handleScroll);
+            // Run once on load to catch initial state if page is refreshed down the page
+            handleScroll();
+        });
+    </script>
 </body>
 </html>

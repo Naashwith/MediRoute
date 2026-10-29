@@ -1,3 +1,4 @@
+
 :root {
     --paper: #f5f8fb;
     --white: #ffffff;
@@ -9,8 +10,8 @@
     --red: #c83e4d;
     --amber: #b97d0e;
     --green: #16845b;
-    --body: "DM Sans", "Segoe UI", Arial, sans-serif;
-    --head: "Manrope", "Segoe UI", Arial, sans-serif;
+    --body: "Public Sans", "Segoe UI", Arial, sans-serif;
+    --head: "Bitter", Georgia, "Times New Roman", serif;
     --shadow: 0 14px 40px rgba(23, 55, 82, 0.08);
 }
 

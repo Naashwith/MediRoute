@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Carepath Crew</title>
+    <title>MediRoute</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Bitter:wght@600;700&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 <body>
 
 <header class="bar" id="bar" hidden>
-    <div class="bar-brand">Carepath Crew</div>
+    <div class="bar-brand">MediRoute</div>
     <div class="bar-who">
         <span id="barName">Crew member</span>
         <span id="barUnit"></span>
@@ -23,9 +23,9 @@
 
 <main class="screen auth" id="auth">
     <aside class="auth-side">
-        <h1>Carepath Crew</h1>
-        <p>Sign in to see your unit, set your status and receive the next emergency assignment.</p>
-        <p class="muted-light">For ambulance compounders and attendants registered with a dispatch centre.</p>
+        <h1>MediRoute</h1>
+        <p>Saving lives, one route at a time.</p>
+        <p class="muted-light">Ambulance crew portal</p>
     </aside>
 
     <section class="auth-main">
@@ -151,7 +151,7 @@
 
         <aside class="track-side">
             <div class="actions col">
-                <button class="btn primary" id="mainAction" type="button">Open patient details</button>
+                <button class="btn primary" id="mainAction" type="button" disabled>Patient details open on arrival</button>
                 <button class="btn ghost small" id="skipBtn" type="button">Test control: jump to arrival</button>
             </div>
             <div class="dest-card">
@@ -221,16 +221,16 @@
 
             <div class="four">
                 <label>Pulse (bpm)
-                    <input name="pulse" type="number">
+                    <input name="pulse" type="number" min="0" max="300">
                 </label>
                 <label>Blood pressure
-                    <input name="bp" placeholder="120/80">
+                    <input name="bp" placeholder="120/80" pattern="\s*\d{2,3}\s*/\s*\d{2,3}\s*" title="Enter as systolic/diastolic, for example 120/80">
                 </label>
                 <label>SpO2 (%)
                     <input name="spo2" type="number" min="0" max="100">
                 </label>
                 <label>Temperature (°C)
-                    <input name="temp" type="number" step="0.1">
+                    <input name="temp" type="number" step="0.1" min="25" max="45">
                 </label>
             </div>
 
@@ -357,7 +357,7 @@
 
             <div class="two">
                 <label>Minimum available beds required
-                    <input name="minBeds" type="number" min="0" max="1000" value="1">
+                    <input name="minBeds" type="number" min="0" max="1000" step="1" value="1">
                 </label>
                 <label>Preferred bed type
                     <select name="bedType">
@@ -425,7 +425,6 @@
         </div>
     </div>
 </div>
-
 <script src="app.js"></script>
 </body>
 </html>

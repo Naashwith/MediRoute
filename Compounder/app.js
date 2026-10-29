@@ -1,597 +1,801 @@
-/* Carepath Crew: frontend structure.
-   Everything marked BACKEND is a stand-in to be swapped for a real API call. */
 (function () {
-  'use strict';
+    'use strict';
 
-  var $ = function (s, r) { return (r || document).querySelector(s); };
-  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
-
-  /* ---------- storage helpers ---------- */
-  var memory = {};
-  function load(key, fallback) {
-    try {
-      var v = localStorage.getItem(key);
-      if (v) return JSON.parse(v);
-    } catch (e) { /* storage blocked, use memory */ }
-    return memory[key] !== undefined ? JSON.parse(memory[key]) : fallback;
-  }
-  function save(key, val) {
-    memory[key] = JSON.stringify(val);
-    try { localStorage.setItem(key, memory[key]); } catch (e) { /* storage blocked */ }
-  }
-
-  /* Test account so the flow can be tried without signing up. Remove before real use. */
-  (function seedDemo() {
-    var users = load('cp_users', []);
-    var has = users.some(function (u) { return u.crewId.toLowerCase() === 'demo'; });
-    if (!has) {
-      users.push({ name: 'Demo Compounder', crewId: 'demo', phone: '0000000000', email: 'demo@carepath.test',
-        unit: 'TN-09-AMB-114', role: 'Compounder', password: 'demo123' });
-      save('cp_users', users);
-    }
-  })();
-
-  /* ---------- state ---------- */
-  var state = {
-    user: null,
-    status: 'available',
-    trips: 0,
-    shiftStart: null,
-    request: null,
-    patient: null,
-    hospital: null,
-    hospitals: [],
-    notifiedAt: null,
-    phase: 'pickup'
-  };
-
-  var STATUS_TEXT = {
-    available: 'Waiting for the next request from dispatch.',
-    break: 'You are on break. Dispatch will not send requests.',
-    offline: 'You are off duty. Set yourself available to receive requests.'
-  };
-  var STATUS_LABEL = { available: 'Available', break: 'On break', offline: 'Off duty', busy: 'On a trip' };
-
-  /* ---------- screen switching ---------- */
-  function show(id) {
-    ['auth', 'dash', 'trip'].forEach(function (s) { $('#' + s).hidden = (s !== id); });
-    $('#bar').hidden = (id === 'auth');
-    window.scrollTo(0, 0);
-  }
-
-  function stamp() {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-
-  function log(text) {
-    var li = document.createElement('li');
-    li.innerHTML = '<time></time><span></span>';
-    $('time', li).textContent = stamp();
-    $('span', li).textContent = text;
-    $('#log').insertBefore(li, $('#log').firstChild);
-  }
-
-  /* ---------- authentication ---------- */
-  function swapTab(toLogin) {
-    $('#loginForm').hidden = !toLogin;
-    $('#signupForm').hidden = toLogin;
-    $('#tabLogin').classList.toggle('on', toLogin);
-    $('#tabSignup').classList.toggle('on', !toLogin);
-    $('#tabLogin').setAttribute('aria-selected', toLogin);
-    $('#tabSignup').setAttribute('aria-selected', !toLogin);
-  }
-  $('#tabLogin').onclick = function () { swapTab(true); };
-  $('#tabSignup').onclick = function () { swapTab(false); };
-
-  $('#signupForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var f = e.target, msg = $('#signupMsg');
-    var d = {};
-    ['name', 'crewId', 'phone', 'email', 'unit', 'role', 'password', 'confirm'].forEach(function (k) {
-      d[k] = f.elements[k].value.trim();
-    });
-    if (!d.name || !d.crewId || !d.phone || !d.email || !d.unit) { msg.textContent = 'Fill in every field to create the account.'; return; }
-    if (!/^\S+@\S+\.\S+$/.test(d.email)) { msg.textContent = 'Enter a valid email address.'; return; }
-    if (d.password.length < 6) { msg.textContent = 'Use a password of at least 6 characters.'; return; }
-    if (d.password !== d.confirm) { msg.textContent = 'The two passwords do not match.'; return; }
-
-    var users = load('cp_users', []);
-    var dupe = users.some(function (u) {
-      return u.crewId.toLowerCase() === d.crewId.toLowerCase() || u.email.toLowerCase() === d.email.toLowerCase();
-    });
-    if (dupe) { msg.textContent = 'An account with this crew ID or email already exists.'; return; }
-
-    delete d.confirm;
-    /* BACKEND: POST /crew/signup. Never store passwords in the browser in production. */
-    users.push(d);
-    save('cp_users', users);
-    msg.textContent = '';
-    f.reset();
-    swapTab(true);
-    $('#loginForm').elements.id.value = d.crewId;
-    $('#loginMsg').textContent = 'Account created. Sign in to continue.';
-    $('#loginMsg').classList.add('ok');
-  });
-
-  $('#loginForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var f = e.target, msg = $('#loginMsg');
-    msg.classList.remove('ok');
-    var id = f.elements.id.value.trim().toLowerCase(), pw = f.elements.password.value;
-    if (!id || !pw) { msg.textContent = 'Enter your crew ID or email and your password.'; return; }
-    /* BACKEND: POST /crew/login */
-    var found = load('cp_users', []).filter(function (u) {
-      return u.crewId.toLowerCase() === id || u.email.toLowerCase() === id;
-    })[0];
-    if (!found) { msg.textContent = 'No account found for that crew ID or email. Create an account first.'; return; }
-    if (found.password !== pw) { msg.textContent = 'Password is not correct.'; return; }
-    var user = found;
-    msg.textContent = '';
-    f.reset();
-    enter(user);
-  });
-
-  function enter(user) {
-    state.user = user;
-    state.status = 'available';
-    state.shiftStart = new Date();
-    $('#barName').textContent = user.name;
-    $('#barUnit').textContent = user.unit;
-    $('#factUnit').textContent = user.unit;
-    $('#factRole').textContent = user.role;
-    $('#shiftStart').textContent = stamp();
-    $('#tripCount').textContent = state.trips;
-    $('#log').innerHTML = '';
-    log('Signed in on unit ' + user.unit);
-    Tracker.start();
-    setStatus('available', true);
-    show('dash');
-  }
-
-  $('#logoutBtn').onclick = function () {
-    if (state.request && !confirm('A trip is in progress. Sign out anyway?')) return;
-    stopLeg(); closeSheets();
-    $('#doneBox').hidden = true;
-    Tracker.stop();
-    state.user = null; state.request = null;
-    show('auth');
-  };
-
-  /* ---------- activity status ---------- */
-  function setStatus(s, quiet) {
-    state.status = s;
-    $$('#statusSet .st').forEach(function (b) { b.classList.toggle('on', b.dataset.s === s); });
-    var pill = $('#barStatus');
-    pill.textContent = STATUS_LABEL[s];
-    pill.className = 'pill' + (s === 'break' ? ' warn' : s === 'offline' ? ' off' : s === 'busy' ? ' busy' : '');
-    var w = $('#waitLine');
-    w.textContent = STATUS_TEXT[s] || '';
-    w.className = 'waiting' + (s === 'break' ? ' paused' : s === 'offline' ? ' stopped' : '');
-    $('#simBtn').disabled = (s !== 'available');
-    if (!quiet) log('Status changed to ' + STATUS_LABEL[s].toLowerCase());
-  }
-  $('#statusSet').addEventListener('click', function (e) {
-    var b = e.target.closest('.st');
-    if (b && !state.request) setStatus(b.dataset.s);
-  });
-
-  /* ---------- location tracking (device GPS) ---------- */
-  function fmtFix(f) { return f.lat.toFixed(5) + ', ' + f.lng.toFixed(5); }
-
-  var Tracker = {
-    watchId: null, fix: null, mode: 'off',
-    start: function () {
-      var self = this;
-      if (!('geolocation' in navigator)) { self.mode = 'unsupported'; self.paint(); return; }
-      if (self.watchId !== null) return;
-      self.mode = 'asking'; self.paint();
-      self.watchId = navigator.geolocation.watchPosition(function (pos) {
-        self.fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
-        self.mode = 'live'; self.paint();
-        /* BACKEND: send self.fix on every update so dispatch and the hospital can follow this unit. */
-      }, function (err) {
-        if (self.watchId !== null) navigator.geolocation.clearWatch(self.watchId);
-        self.watchId = null; self.fix = null;
-        self.mode = err.code === 1 ? 'denied' : 'unavailable';
-        self.paint();
-      }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
-    },
-    stop: function () {
-      if (this.watchId !== null && 'geolocation' in navigator) navigator.geolocation.clearWatch(this.watchId);
-      this.watchId = null; this.fix = null; this.mode = 'off';
-      this.paint();
-    },
-    paint: function () {
-      var live = this.mode === 'live' && this.fix;
-      var texts = {
-        off: 'Location not enabled.',
-        asking: 'Waiting for location permission.',
-        live: live ? 'Live location on: ' + fmtFix(this.fix) + ' (within ' + this.fix.acc + ' m).' : '',
-        denied: 'Location is blocked in the browser. Allow it in the site settings, then try again.',
-        unavailable: 'Location could not be read on this device.',
-        unsupported: 'This browser does not support location.'
-      };
-      $('#locState').textContent = texts[this.mode] || '';
-      $('#locBtn').hidden = (this.mode === 'live' || this.mode === 'asking');
-      $('#gpsLine').textContent = live
-        ? 'GPS live: ' + fmtFix(this.fix) + ' (within ' + this.fix.acc + ' m)'
-        : 'GPS not available. Route position is simulated.';
-    }
-  };
-  $('#locBtn').onclick = function () { Tracker.start(); };
-
-  /* ---------- route drawing (stand-in for the map) ---------- */
-  function routeSVG(fromLabel, toLabel, seed) {
-    var bend = 40 + (seed % 5) * 22;
-    var d = 'M50,230 C150,' + (230 - bend * 2) + ' 230,' + (60 + bend) + ' 330,150 S500,' + (230 - bend) + ' 550,60';
-    var streets = '';
-    for (var i = 1; i < 6; i++) streets += '<line x1="' + (i * 100) + '" y1="0" x2="' + (i * 100 - 40) + '" y2="300" />';
-    for (var j = 1; j < 4; j++) streets += '<line x1="0" y1="' + (j * 75) + '" x2="600" y2="' + (j * 75 + 20) + '" />';
-    return '<svg viewBox="0 0 600 300" role="img" aria-label="Route from ' + fromLabel + ' to ' + toLabel + '">' +
-      '<g stroke="#c3cfd2" stroke-width="10" fill="none">' + streets + '</g>' +
-      '<path class="route-path" d="' + d + '" fill="none" stroke="#8da3a9" stroke-width="5" stroke-dasharray="2 9" stroke-linecap="round"/>' +
-      '<path class="route-trail" d="' + d + '" fill="none" stroke="#0e4a5a" stroke-width="6" stroke-linecap="round"/>' +
-      '<circle cx="50" cy="230" r="8" fill="#2b7a4b"/>' +
-      '<rect x="541" y="51" width="18" height="18" fill="#b83226"/>' +
-      '<circle class="unit-dot" cx="50" cy="230" r="10" fill="#fff" stroke="#b83226" stroke-width="4"/>' +
-      '<text x="62" y="256" font-size="15" fill="#15232b" font-family="sans-serif">' + fromLabel + '</text>' +
-      '<text x="540" y="92" font-size="15" fill="#15232b" font-family="sans-serif" text-anchor="end">' + toLabel + '</text>' +
-      '</svg>';
-  }
-
-  function factRows(target, rows) {
-    target.innerHTML = '';
-    rows.forEach(function (r) {
-      var d = document.createElement('div');
-      var dt = document.createElement('dt'), dd = document.createElement('dd');
-      dt.textContent = r[0]; dd.textContent = r[1];
-      d.appendChild(dt); d.appendChild(dd); target.appendChild(d);
-    });
-  }
-
-  /* ---------- journey legs: to the patient, then to the hospital ---------- */
-  var leg = { key: '', minutes: 1, km: 0, p: 0, timer: null, path: null, trail: null, dot: null, len: 0 };
-
-  function stopLeg() { clearInterval(leg.timer); leg.timer = null; }
-
-  function paintLeg() {
-    var pt = leg.path.getPointAtLength(leg.len * leg.p);
-    leg.dot.setAttribute('cx', pt.x);
-    leg.dot.setAttribute('cy', pt.y);
-    leg.trail.style.strokeDashoffset = leg.len * (1 - leg.p);
-    $('#etaMain').textContent = Math.ceil((1 - leg.p) * leg.minutes - 0.0001);
-    $('#distMain').textContent = ((1 - leg.p) * leg.km).toFixed(1);
-    $('#progFill').style.width = (leg.p * 100) + '%';
-  }
-
-  function startLeg(o) {
-    stopLeg();
-    var map = $('#mapMain');
-    map.innerHTML = routeSVG(o.from, o.to, o.seed);
-    leg.key = o.key; leg.minutes = Math.max(1, o.minutes); leg.km = o.km; leg.p = 0;
-    leg.path = $('.route-path', map); leg.trail = $('.route-trail', map); leg.dot = $('.unit-dot', map);
-    leg.len = leg.path.getTotalLength();
-    leg.trail.style.strokeDasharray = leg.len;
-    paintLeg();
-    /* Demo speed: one displayed minute every 4 seconds.
-       BACKEND / map: drive leg.p from the real GPS fix and the route returned by the routing service.
-       Arrival can then be detected when the distance to the destination falls under about 50 metres. */
-    leg.timer = setInterval(function () {
-      leg.p = Math.min(1, leg.p + 0.5 / (leg.minutes * 4));
-      paintLeg();
-      if (leg.p >= 1) arriveLeg();
-    }, 500);
-  }
-
-  function arriveLeg() {
-    stopLeg();
-    $('#mainAction').disabled = false;
-    $('#actionHint').textContent = '';
-    if (leg.key === 'pickup') {
-      banner('You have reached the pickup location. Press Patient received once the patient is on board.');
-      log('Reached the patient location');
-    } else {
-      log('Reached ' + state.hospital.h.name);
-      openDone();
-    }
-  }
-
-  function banner(text) {
-    var b = $('#banner');
-    b.classList.toggle('empty', !text);
-    b.textContent = text || '\u00a0';
-  }
-
-  /* ---------- base screen phases ---------- */
-  var PHASES = {
-    pickup:   { line: 'Heading to patient', title: 'Pickup location', btn: 'Patient received' },
-    intake:   { line: 'Patient on board', title: 'Patient details needed', btn: 'Enter patient details' },
-    hospital: { line: 'Patient on board', title: 'Choose the hospital', btn: 'Choose hospital' },
-    transit:  { line: 'Heading to hospital', title: '', btn: 'Confirm arrival at hospital' }
-  };
-
-  function setPhase(k) {
-    state.phase = k;
-    var ph = PHASES[k];
-    $('#phaseLine').textContent = ph.line;
-    $('#destTitle').textContent = (k === 'transit') ? state.hospital.h.name : ph.title;
-    $('#mainAction').textContent = ph.btn;
-    $('#mainAction').disabled = (k === 'pickup' || k === 'transit');
-    $('#actionHint').textContent = k === 'pickup' ? 'Available once you reach the pickup location.'
-      : (k === 'transit' ? 'Available once you reach the hospital.' : '');
-    banner('');
-  }
-
-  /* ---------- temporary panels ---------- */
-  function closeSheets() {
-    document.body.classList.remove('sheet-open', 'sheet-full');
-    $('#intakeSheet').hidden = true;
-    $('#hospitalSheet').hidden = true;
-    $('#sheetBack').hidden = true;
-  }
-  function openSheet(id) {
-    closeSheets();
-    $('#sheetBack').hidden = false;
-    document.body.classList.add('sheet-open');
-    if (id === 'intakeSheet') document.body.classList.add('sheet-full');
-    $('#' + id).hidden = false;
-    $('#' + id).scrollTop = 0;
-  }
-  $$('.sheet-hide').forEach(function (b) { b.onclick = closeSheets; });
-  $('#sheetBack').onclick = closeSheets;
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && $('#doneBox').hidden) closeSheets();
-  });
-
-  /* ---------- incoming request ---------- */
-  var SAMPLE_REQUESTS = [
-    { caller: 'Meena R.', address: '14, Lake View Road, Adyar', complaint: 'Chest pain, difficulty breathing', priority: 'Priority 1', km: 4.2, eta: 9 },
-    { caller: 'Suresh K.', address: 'Bus stand junction, Tambaram', complaint: 'Road accident, leg injury', priority: 'Priority 1', km: 6.8, eta: 13 },
-    { caller: 'Fathima B.', address: '22, Gandhi Street, Velachery', complaint: 'Elderly patient, fainted at home', priority: 'Priority 2', km: 3.1, eta: 7 }
-  ];
-
-  $('#simBtn').onclick = function () {
-    /* BACKEND: replaced by a push (websocket or SSE) carrying the assigned SOS. */
-    var r = SAMPLE_REQUESTS[Math.floor(Math.random() * SAMPLE_REQUESTS.length)];
-    receiveRequest({
-      id: 'SOS-' + Math.floor(1000 + Math.random() * 9000),
-      caller: r.caller, address: r.address, complaint: r.complaint,
-      priority: r.priority, km: r.km, eta: r.eta
-    });
-  };
-
-  function receiveRequest(r) {
-    state.request = r;
-    state.patient = null; state.hospital = null; state.notifiedAt = null;
-    setStatus('busy', true);
-    log('Request ' + r.id + ' assigned: ' + r.complaint);
-
-    closeSheets();
-    $('#doneBox').hidden = true;
-    $('#informChip').hidden = true;
-    $('#noticeBox').hidden = true;
-    $('#reqPriority').textContent = r.priority;
-    factRows($('#destFacts'), [
-      ['Pickup address', r.address],
-      ['Reported by', r.caller],
-      ['Reported problem', r.complaint],
-      ['Request', r.id],
-      ['Your unit', state.user.unit],
-      ['Crew', state.user.name]
-    ]);
-    show('trip');
-    startLeg({ key: 'pickup', minutes: r.eta, km: r.km, from: 'Your unit', to: 'Patient', seed: (r.km * 10) | 0 });
-    setPhase('pickup');
-    banner('Emergency assigned to your unit. Head to the pickup location.');
-  }
-
-  $('#mainAction').onclick = function () {
-    var k = state.phase;
-    if (k === 'pickup') {
-      if (leg.timer) return;
-      stopLeg();
-      leg.p = 1; paintLeg();
-      log('Patient received on board');
-      prefillFromProfile(null);
-      setPhase('intake');
-      openSheet('intakeSheet');
-    } else if (k === 'intake') {
-      openSheet('intakeSheet');
-    } else if (k === 'hospital') {
-      openSheet('hospitalSheet');
-    } else if (k === 'transit') {
-      if (leg.timer) return;
-      openDone();
-    }
-  };
-
-  $('#skipBtn').onclick = function () {
-    if (!leg.timer) return;
-    leg.p = 1; paintLeg(); arriveLeg();
-  };
-
-  /* ---------- patient details ---------- */
-  /* BACKEND: if the patient is signed in to the user app, pass their profile here.
-     Expected shape: { name, age, sex, conditions, allergies, medicines, bloodGroup } */
-  function prefillFromProfile(profile) {
-    var note = $('#profileNote'), f = $('#intakeForm');
-    f.reset();
-    $('#intakeMsg').textContent = '';
-    if (!profile) {
-      note.className = 'profile-note';
-      note.textContent = 'Patient profile: not linked. If the patient is signed in, their saved details will fill in here.';
-      return;
-    }
-    f.elements.pname.value = profile.name || '';
-    f.elements.age.value = profile.age || '';
-    f.elements.sex.value = profile.sex || '';
-    note.className = 'profile-note linked';
-    note.textContent = 'Patient profile linked. Known conditions: ' + (profile.conditions || 'none recorded') +
-      '. Allergies: ' + (profile.allergies || 'none recorded') + '.';
-  }
-
-  $('#intakeForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var f = e.target;
-    if (!f.elements.symptoms.value.trim()) {
-      $('#intakeMsg').textContent = 'Describe the main complaint before searching for a hospital.';
-      f.elements.symptoms.focus();
-      return;
-    }
-    state.patient = {
-      name: f.elements.pname.value.trim() || 'Unknown',
-      age: f.elements.age.value, sex: f.elements.sex.value,
-      symptoms: f.elements.symptoms.value.trim(),
-      pulse: f.elements.pulse.value, bp: f.elements.bp.value.trim(),
-      spo2: f.elements.spo2.value, temp: f.elements.temp.value,
-      avpu: f.elements.avpu.value,
-      needs: $$('input[name=need]:checked', f).map(function (c) { return c.value; }),
-      given: f.elements.given.value.trim()
+    var $ = function (selector, root) {
+        return (root || document).querySelector(selector);
     };
-    log('Patient details recorded');
-    findHospitals();
-  });
 
-  /* ---------- hospital search ---------- */
-  var HOSPITAL_DB = [
-    { name: 'Government General Hospital', area: 'Park Town', phone: '044 2530 5000', km: 7.4, eta: 16, beds: 6, has: ['Cardiac care', 'Trauma and orthopaedics', 'Neurology', 'ICU bed', 'Ventilator', 'Blood bank', 'Burns unit', 'Maternity'] },
-    { name: 'Southern Heart Institute', area: 'Adyar', phone: '044 2491 1100', km: 3.9, eta: 9, beds: 3, has: ['Cardiac care', 'ICU bed', 'Ventilator', 'Blood bank'] },
-    { name: 'Lakeside Trauma Centre', area: 'Guindy', phone: '044 2234 7788', km: 5.6, eta: 12, beds: 4, has: ['Trauma and orthopaedics', 'ICU bed', 'Blood bank', 'Burns unit'] },
-    { name: 'St. Matthew Community Hospital', area: 'Velachery', phone: '044 2259 3030', km: 2.7, eta: 6, beds: 8, has: ['Maternity', 'Blood bank', 'ICU bed'] }
-  ];
+    var $$ = function (selector, root) {
+        return Array.from((root || document).querySelectorAll(selector));
+    };
 
-  function findHospitals() {
-    /* BACKEND: POST /hospitals/match with the patient summary and the live GPS position.
-       The server returns ranked hospitals with live ETA and bed availability.
-       The scoring below only imitates that so the interface has something to show. */
-    var wanted = state.patient.needs;
-    state.hospitals = HOSPITAL_DB.map(function (h) {
-      var met = wanted.filter(function (n) { return h.has.indexOf(n) > -1; });
-      var missing = wanted.filter(function (n) { return h.has.indexOf(n) === -1; });
-      var score = (wanted.length ? met.length / wanted.length : 1) * 100 - h.eta * 2 + Math.min(h.beds, 5);
-      return { h: h, met: met, missing: missing, score: score };
-    }).sort(function (a, b) { return b.score - a.score; });
-    chooseHospital(0, true);
-    setPhase('hospital');
-    openSheet('hospitalSheet');
-  }
+    var state = {
+        user: null,
+        status: 'available',
+        trips: 0,
+        request: null,
+        patient: null,
+        hospital: null,
+        hospitals: [],
+        notifiedAt: null
+    };
 
-  function chooseHospital(i, first) {
-    var r = state.hospitals[i], h = r.h;
-    state.hospital = r;
-    $('#hName').textContent = h.name;
-    $('#hAddr').textContent = h.area + ', Chennai';
-    $('#matchPill').textContent = first ? 'Best match' : 'Selected by crew';
-    $('#mapHospital').innerHTML = routeSVG('Patient pickup', h.name, h.eta);
-    $('#etaHospital').textContent = h.eta;
-    $('#distHospital').textContent = h.km + ' km';
-    factRows($('#hFacts'), [
-      ['Needs covered', r.met.length ? r.met.join(', ') : 'No specific needs entered'],
-      ['Not available', r.missing.length ? r.missing.join(', ') : 'None'],
-      ['Beds free now', String(h.beds)],
-      ['Casualty desk', h.phone]
-    ]);
-    log(first ? 'Recommended hospital: ' + h.name : 'Hospital changed to ' + h.name);
-    renderAlternatives();
-  }
+    var demoUser = {
+        name: 'Demo Crew',
+        crewId: 'demo',
+        phone: '',
+        email: '',
+        unit: 'TN-09-AMB-114',
+        role: 'Compounder',
+        password: 'demo123'
+    };
 
-  function renderAlternatives() {
-    var ul = $('#alts');
-    ul.innerHTML = '';
-    state.hospitals.forEach(function (r, i) {
-      if (r === state.hospital) return;
-      var li = document.createElement('li');
-      var left = document.createElement('div');
-      var name = document.createElement('strong'); name.textContent = r.h.name;
-      var sm = document.createElement('small');
-      sm.textContent = r.h.area + (r.missing.length ? ' - lacks ' + r.missing.join(', ') : ' - covers all needs');
-      left.appendChild(name); left.appendChild(sm);
-      var meta = document.createElement('span'); meta.textContent = r.h.eta + ' min, ' + r.h.km + ' km';
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn ghost'; b.textContent = 'Use this hospital';
-      b.onclick = function () { chooseHospital(i, false); };
-      li.appendChild(left); li.appendChild(meta); li.appendChild(b);
-      ul.appendChild(li);
+    var users = [demoUser];
+    var shiftStarted = false;
+    var leg = {
+        key: '',
+        p: 0,
+        timer: null,
+        minutes: 0,
+        km: 0,
+        from: '',
+        to: ''
+    };
+
+    function stamp() {
+        return new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function log(message) {
+        var li = document.createElement('li');
+        li.textContent = stamp() + ' — ' + message;
+        $('#log').prepend(li);
+    }
+
+    function show(id) {
+        ['auth', 'dash', 'trip'].forEach(function (name) {
+            $('#' + name).hidden = name !== id;
+        });
+    }
+
+    function setStatus(status, writeLog) {
+        state.status = status;
+
+        $$('#statusSet .st').forEach(function (button) {
+            button.classList.toggle('on', button.dataset.s === status);
+        });
+
+        var labels = {
+            available: 'Available',
+            break: 'On break',
+            offline: 'Off duty',
+            busy: 'On assignment'
+        };
+
+        $('#barStatus').textContent = labels[status] || status;
+        $('#barStatus').className = 'pill';
+
+        if (status === 'busy') {
+            $('#barStatus').classList.add('hot');
+        }
+
+        $('#waitLine').className = 'waiting';
+
+        if (status === 'break') {
+            $('#waitLine').textContent = 'You are on break.';
+            $('#waitLine').classList.add('paused');
+        } else if (status === 'offline') {
+            $('#waitLine').textContent = 'You are off duty.';
+            $('#waitLine').classList.add('stopped');
+        } else if (status === 'busy') {
+            $('#waitLine').textContent = 'You are handling an emergency assignment.';
+        } else {
+            $('#waitLine').textContent = 'Waiting for the next request from dispatch.';
+        }
+
+        if (writeLog) {
+            log('Status changed to ' + (labels[status] || status));
+        }
+    }
+
+    function openSheet(id) {
+        $('#sheetBack').hidden = false;
+        $('#' + id).hidden = false;
+    }
+
+    function closeSheets() {
+        $('#sheetBack').hidden = true;
+        $('#intakeSheet').hidden = true;
+        $('#hospitalSheet').hidden = true;
+    }
+
+    function factRows(dl, rows) {
+        dl.innerHTML = '';
+
+        rows.forEach(function (row) {
+            var div = document.createElement('div');
+            var dt = document.createElement('dt');
+            var dd = document.createElement('dd');
+
+            dt.textContent = row[0];
+            dd.textContent = row[1];
+
+            div.appendChild(dt);
+            div.appendChild(dd);
+            dl.appendChild(div);
+        });
+    }
+
+    function routeSVG(fromLabel, toLabel, progress) {
+        var x = 50 + Math.max(0, Math.min(1, progress / 20)) * 470;
+
+        return '<svg viewBox="0 0 600 300" role="img" aria-label="Illustrative route">' +
+            '<rect width="600" height="300" fill="#edf3f6"/>' +
+            '<g stroke="#d7e1e9" stroke-width="20" fill="none">' +
+            '<path d="M-20 70 L620 70"/>' +
+            '<path d="M-20 230 L620 230"/>' +
+            '<path d="M130 -20 L130 320"/>' +
+            '<path d="M470 -20 L470 320"/>' +
+            '</g>' +
+            '<path d="M50 230 L130 230 L130 70 L470 70 L470 150" fill="none" stroke="#9aabb8" stroke-width="6" stroke-dasharray="3 9"/>' +
+            '<path d="M50 230 L130 230 L130 70 L470 70 L470 150" fill="none" stroke="#176b87" stroke-width="5" stroke-linecap="round"/>' +
+            '<circle cx="50" cy="230" r="9" fill="#16845b"/>' +
+            '<rect x="460" y="140" width="20" height="20" rx="3" fill="#c83e4d"/>' +
+            '<circle cx="' + x + '" cy="230" r="9" fill="#ffffff" stroke="#176b87" stroke-width="4"/>' +
+            '<text x="45" y="260" font-size="14" fill="#172b3a">' + fromLabel + '</text>' +
+            '<text x="470" y="125" text-anchor="middle" font-size="14" fill="#172b3a">' + toLabel + '</text>' +
+            '</svg>';
+    }
+
+    function login(user) {
+        state.user = user;
+
+        $('#bar').hidden = false;
+        $('#barName').textContent = user.name;
+        $('#barUnit').textContent = user.unit;
+
+        $('#factUnit').textContent = user.unit;
+        $('#factRole').textContent = user.role;
+
+        if (!shiftStarted) {
+            $('#shiftStart').textContent = stamp();
+            shiftStarted = true;
+        }
+
+        setStatus('available', false);
+        log(user.name + ' signed in');
+        show('dash');
+    }
+
+    $('#tabLogin').onclick = function () {
+        $('#loginForm').hidden = false;
+        $('#signupForm').hidden = true;
+        $('#tabLogin').classList.add('on');
+        $('#tabSignup').classList.remove('on');
+    };
+
+    $('#tabSignup').onclick = function () {
+        $('#loginForm').hidden = true;
+        $('#signupForm').hidden = false;
+        $('#tabLogin').classList.remove('on');
+        $('#tabSignup').classList.add('on');
+    };
+
+    $('#loginForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        var form = event.target;
+        var id = form.elements.id.value.trim().toLowerCase();
+        var password = form.elements.password.value;
+
+        var user = users.find(function (item) {
+            return (
+                item.crewId.toLowerCase() === id ||
+                item.email.toLowerCase() === id
+            ) && item.password === password;
+        });
+
+        if (!user) {
+            $('#loginMsg').textContent = 'Invalid crew ID/email or password.';
+            return;
+        }
+
+        $('#loginMsg').textContent = '';
+        login(user);
     });
-  }
 
-  /* ---------- lock the hospital: journey starts, hospital is informed automatically ---------- */
-  function buildNotice() {
-    var p = state.patient, r = state.request, h = state.hospital.h;
-    var vitals = [];
-    if (p.pulse) vitals.push('pulse ' + p.pulse);
-    if (p.bp) vitals.push('BP ' + p.bp);
-    if (p.spo2) vitals.push('SpO2 ' + p.spo2 + '%');
-    if (p.temp) vitals.push('temp ' + p.temp + ' C');
-    return [
-      'To: Casualty desk, ' + h.name,
-      'From: Unit ' + state.user.unit + ', ' + state.user.name + ' (' + state.user.role + ')',
-      'Expected arrival: about ' + h.eta + ' minutes',
-      'Unit location: ' + (Tracker.fix ? fmtFix(Tracker.fix) : 'live tracking will be shared by dispatch'),
-      '',
-      'Patient: ' + p.name + (p.age ? ', ' + p.age + ' years' : '') + (p.sex ? ', ' + p.sex.toLowerCase() : ''),
-      'Reported problem: ' + r.complaint,
-      'Symptoms: ' + p.symptoms,
-      'Consciousness: ' + p.avpu,
-      'Vitals: ' + (vitals.length ? vitals.join(', ') : 'not recorded'),
-      'Treatment given: ' + (p.given || 'none'),
-      'Please prepare: ' + (p.needs.length ? p.needs.join(', ') : 'general casualty assessment')
-    ].join('\n');
-  }
+    $('#signupForm').addEventListener('submit', function (event) {
+        event.preventDefault();
 
-  function notifyHospital(h, message) {
-    /* BACKEND: POST /hospitals/:id/notify with the message, the patient summary and the unit position.
-       Keep sending position updates for the whole journey so the hospital sees the ETA change. */
-    state.notifiedAt = stamp();
-    $('#informChip').textContent = 'Hospital informed automatically at ' + state.notifiedAt;
-    $('#informChip').hidden = false;
-    $('#noticeText').textContent = message;
-    $('#noticeBox').hidden = false;
-    $('#noticeBox').open = false;
-    log('Hospital informed: ' + h.name);
-  }
+        var form = event.target;
+        var password = form.elements.password.value;
+        var confirm = form.elements.confirm.value;
 
-  $('#startHospitalBtn').onclick = function () {
-    var h = state.hospital.h, p = state.patient;
-    notifyHospital(h, buildNotice());
-    closeSheets();
-    setPhase('transit');
-    factRows($('#destFacts'), [
-      ['Hospital', h.name],
-      ['Address', h.area + ', Chennai'],
-      ['Casualty desk', h.phone],
-      ['Patient', p.name + (p.age ? ', ' + p.age + ' years' : '')],
-      ['Prepared for', p.needs.length ? p.needs.join(', ') : 'General casualty assessment'],
-      ['Request', state.request.id]
-    ]);
-    startLeg({ key: 'hospital', minutes: h.eta, km: h.km, from: 'Patient pickup', to: h.name, seed: h.eta });
-    banner('Journey locked to ' + h.name + '. Its casualty desk has been informed.');
-  };
+        if (password !== confirm) {
+            $('#signupMsg').textContent = 'Passwords do not match.';
+            return;
+        }
 
-  /* ---------- destination reached ---------- */
-  function openDone() {
-    $('#doneText').textContent = 'You have reached ' + state.hospital.h.name + '. Has the patient been handed over to the hospital staff?';
-    $('#doneBox').hidden = false;
-    $('#doneYes').focus();
-  }
+        var crewId = form.elements.crewId.value.trim();
+        var email = form.elements.email.value.trim();
 
-  $('#doneYes').onclick = function () {
-    stopLeg();
-    $('#doneBox').hidden = true;
-    /* BACKEND: POST /requests/:id/close */
-    state.trips += 1;
-    $('#tripCount').textContent = state.trips;
-    log('Ride completed at ' + state.hospital.h.name);
-    state.request = null; state.patient = null; state.hospital = null;
-    setStatus('available', true);
-    show('dash');
-  };
+        var exists = users.some(function (user) {
+            return user.crewId.toLowerCase() === crewId.toLowerCase() ||
+                user.email.toLowerCase() === email.toLowerCase();
+        });
 
-  $('#doneNo').onclick = function () {
-    $('#doneBox').hidden = true;
-    banner('Destination reached. Press Confirm arrival at hospital once the patient is handed over.');
-  };
+        if (exists) {
+            $('#signupMsg').textContent = 'That crew ID or email is already registered.';
+            return;
+        }
 
-  Tracker.paint();
-  show('auth');
+        var user = {
+            name: form.elements.name.value.trim(),
+            crewId: crewId,
+            phone: form.elements.phone.value.trim(),
+            email: email,
+            unit: form.elements.unit.value.trim(),
+            role: form.elements.role.value,
+            password: password
+        };
+
+        users.push(user);
+        $('#signupMsg').textContent = 'Account created. You can now sign in.';
+        form.reset();
+
+        $('#tabLogin').click();
+    });
+
+    $('#logoutBtn').onclick = function () {
+        stopLeg();
+        closeSheets();
+        $('#bar').hidden = true;
+        state.user = null;
+        state.request = null;
+        state.patient = null;
+        state.hospital = null;
+        show('auth');
+    };
+
+    $$('#statusSet .st').forEach(function (button) {
+        button.onclick = function () {
+            if (state.status === 'busy') {
+                $('#waitLine').textContent = 'Complete the current assignment before changing status.';
+                return;
+            }
+
+            setStatus(button.dataset.s, true);
+        };
+    });
+
+    $('#locBtn').onclick = function () {
+        if (!navigator.geolocation) {
+            $('#locState').textContent = 'Geolocation is not supported by this browser.';
+            return;
+        }
+
+        $('#locState').textContent = 'Requesting location permission...';
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                var latitude = position.coords.latitude.toFixed(5);
+                var longitude = position.coords.longitude.toFixed(5);
+
+                $('#locState').textContent = latitude + ', ' + longitude;
+                $('#gpsLine').textContent = 'GPS location received from device.';
+                log('Device location enabled');
+            },
+            function () {
+                $('#locState').textContent = 'Location permission denied or unavailable.';
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000
+            }
+        );
+    };
+
+    $('#simBtn').onclick = function () {
+        if (state.status !== 'available') {
+            $('#waitLine').textContent = 'Set your status to Available to accept a test request.';
+            return;
+        }
+
+        state.request = {
+            id: 'REQ-' + Date.now().toString().slice(-6),
+            caller: 'Dispatch centre',
+            address: 'Emergency pickup location',
+            complaint: 'Emergency medical assistance requested',
+            priority: 'Priority 1',
+            eta: 8,
+            km: 3.2
+        };
+
+        state.patient = null;
+        state.hospital = null;
+
+        setStatus('busy', true);
+        $('#reqPriority').textContent = state.request.priority;
+        $('#destTitle').textContent = state.request.address;
+        $('#phaseLine').textContent = 'Heading to patient';
+
+        $('#mapMain').innerHTML = routeSVG('Ambulance', 'Patient', 0);
+
+        factRows($('#destFacts'), [
+            ['Pickup address', state.request.address],
+            ['Reported by', state.request.caller],
+            ['Reported problem', state.request.complaint],
+            ['Request', state.request.id],
+            ['Your unit', state.user.unit],
+            ['Crew', state.user.name]
+        ]);
+
+        $('#mainAction').textContent = 'Open patient details';
+        $('#mainAction').disabled = false;
+        $('#skipBtn').hidden = true;
+
+        log('Emergency request received: ' + state.request.id);
+        show('trip');
+        startLeg({
+            key: 'pickup',
+            minutes: state.request.eta,
+            km: state.request.km,
+            from: 'Ambulance',
+            to: 'Patient'
+        });
+    };
+
+    function paintLeg() {
+        var fraction = Math.min(1, leg.p);
+        var remainingMinutes = Math.ceil(leg.minutes * (1 - fraction));
+        var remainingKm = (leg.km * (1 - fraction)).toFixed(1);
+
+        $('#etaMain').textContent = remainingMinutes;
+        $('#distMain').textContent = remainingKm;
+        $('#progFill').style.width = (fraction * 100) + '%';
+        $('#mapMain').innerHTML = routeSVG(leg.from, leg.to, fraction * 20);
+    }
+
+    function startLeg(options) {
+        stopLeg();
+
+        leg.key = options.key;
+        leg.p = 0;
+        leg.minutes = options.minutes;
+        leg.km = options.km;
+        leg.from = options.from;
+        leg.to = options.to;
+
+        paintLeg();
+
+        leg.timer = setInterval(function () {
+            leg.p += 1 / Math.max(1, leg.minutes * 2);
+            paintLeg();
+
+            if (leg.p >= 1) {
+                leg.p = 1;
+                paintLeg();
+                arriveLeg();
+            }
+        }, 500);
+    }
+
+    function stopLeg() {
+        if (leg.timer) {
+            clearInterval(leg.timer);
+            leg.timer = null;
+        }
+    }
+
+    function arriveLeg() {
+        stopLeg();
+
+        if (leg.key === 'pickup') {
+            $('#phaseLine').textContent = 'At patient location';
+            $('#banner').textContent = 'You have reached the pickup location. Record patient details to find a suitable hospital.';
+            $('#mainAction').textContent = 'Open patient details';
+            $('#mainAction').disabled = false;
+            $('#skipBtn').hidden = true;
+            log('Reached patient pickup location');
+        } else if (leg.key === 'hospital') {
+            $('#phaseLine').textContent = 'At hospital';
+            $('#banner').textContent = 'You have reached the selected hospital.';
+            $('#mainAction').textContent = 'Confirm patient handover';
+            $('#mainAction').disabled = false;
+            $('#skipBtn').hidden = true;
+            log('Reached hospital: ' + state.hospital.h.name);
+        }
+    }
+
+    $('#mainAction').onclick = function () {
+        if (!state.request) {
+            return;
+        }
+
+        if (leg.key === 'pickup') {
+            if (leg.p < 1) {
+                $('#banner').textContent = 'The ambulance is travelling to the patient. You can open the patient form for this demo.';
+            }
+
+            $('#intakeMsg').textContent = '';
+            openSheet('intakeSheet');
+        } else if (leg.key === 'hospital') {
+            $('#doneText').textContent = 'Confirm that the patient has been handed over to ' + state.hospital.h.name + '.';
+            $('#doneBox').hidden = false;
+        }
+    };
+
+    $('#skipBtn').onclick = function () {
+        if (!leg.timer) {
+            return;
+        }
+
+        leg.p = 1;
+        paintLeg();
+        arriveLeg();
+    };
+
+    $$('.sheet-hide').forEach(function (button) {
+        button.onclick = closeSheets;
+    });
+
+    $('#sheetBack').onclick = closeSheets;
+
+    function prefillFromProfile(profile) {
+        var form = $('#intakeForm');
+        form.reset();
+        $('#intakeMsg').textContent = '';
+
+        if (!profile) {
+            $('#profileNote').className = 'profile-note';
+            $('#profileNote').textContent = 'Patient profile: not linked. Enter the patient details below.';
+            return;
+        }
+
+        form.elements.pname.value = profile.name || '';
+        form.elements.age.value = profile.age || '';
+        form.elements.sex.value = profile.sex || '';
+
+        $('#profileNote').className = 'profile-note linked';
+        $('#profileNote').textContent = 'Patient profile linked. Verify the details before continuing.';
+    }
+
+    $('#intakeForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        var form = event.target;
+
+        if (!form.elements.symptoms.value.trim()) {
+            $('#intakeMsg').textContent = 'Describe the main complaint before searching for a hospital.';
+            form.elements.symptoms.focus();
+            return;
+        }
+
+        state.patient = {
+            name: form.elements.pname.value.trim() || 'Unknown',
+            age: form.elements.age.value,
+            sex: form.elements.sex.value,
+            symptoms: form.elements.symptoms.value.trim(),
+            pulse: form.elements.pulse.value,
+            bp: form.elements.bp.value.trim(),
+            spo2: form.elements.spo2.value,
+            temp: form.elements.temp.value,
+            avpu: form.elements.avpu.value,
+            needs: $$('input[name="need"]:checked', form).map(function (checkbox) {
+                return checkbox.value;
+            }),
+            bloodGroups: $$('input[name="bloodGroup"]:checked', form).map(function (checkbox) {
+                return checkbox.value;
+            }),
+            minBeds: Number(form.elements.minBeds.value || 0),
+            bedType: form.elements.bedType.value,
+            given: form.elements.given.value.trim()
+        };
+
+        log('Patient details recorded');
+        findHospitals();
+    });
+
+    var HOSPITAL_DB = [
+        {
+            name: 'Government General Hospital',
+            area: 'Park Town',
+            phone: '044 2530 5000',
+            km: 7.4,
+            eta: 16,
+            beds: 6,
+            has: [
+                'Emergency/Casualty', '24/7 specialist service',
+                'Cardiac care', 'Trauma and orthopaedics',
+                'Neurology', 'Orthopedics', 'Pediatrics',
+                'General Medicine', 'Surgery', 'ICU bed',
+                'Emergency bed', 'Isolation bed', 'Trauma bed',
+                'Ventilator', 'Oxygen support', 'ECG machine',
+                'Defibrillator', 'Suction apparatus', 'Infusion pump',
+                'Glucometer', 'Blood bank', 'Burns unit', 'Maternity'
+            ]
+        },
+        {
+            name: 'Southern Heart Institute',
+            area: 'Adyar',
+            phone: '044 2491 1100',
+            km: 3.9,
+            eta: 9,
+            beds: 3,
+            has: [
+                'Emergency/Casualty', '24/7 specialist service',
+                'Cardiac care', 'Neurology', 'General Medicine',
+                'Surgery', 'ICU bed', 'Emergency bed', 'Ventilator',
+                'Oxygen support', 'ECG machine', 'Defibrillator',
+                'Suction apparatus', 'Infusion pump', 'Glucometer',
+                'Blood bank'
+            ]
+        },
+        {
+            name: 'Lakeside Trauma Centre',
+            area: 'Guindy',
+            phone: '044 2234 7788',
+            km: 5.6,
+            eta: 12,
+            beds: 4,
+            has: [
+                'Emergency/Casualty', '24/7 specialist service',
+                'Trauma and orthopaedics', 'Orthopedics', 'Surgery',
+                'ICU bed', 'Emergency bed', 'Isolation bed', 'Trauma bed',
+                'Ventilator', 'Oxygen support', 'ECG machine',
+                'Defibrillator', 'Suction apparatus', 'Blood bank',
+                'Burns unit'
+            ]
+        },
+        {
+            name: 'St. Matthew Community Hospital',
+            area: 'Velachery',
+            phone: '044 2259 3030',
+            km: 2.7,
+            eta: 6,
+            beds: 8,
+            has: [
+                'Emergency/Casualty', 'Maternity', 'Pediatrics',
+                'General Medicine', 'Blood bank', 'ICU bed',
+                'Emergency bed', 'Isolation bed', 'Oxygen support',
+                'ECG machine', 'Glucometer'
+            ]
+        }
+    ];
+
+    function findHospitals() {
+        var wanted = state.patient.needs;
+
+        state.hospitals = HOSPITAL_DB.map(function (hospital) {
+            var met = wanted.filter(function (need) {
+                return hospital.has.indexOf(need) !== -1;
+            });
+
+            var missing = wanted.filter(function (need) {
+                return hospital.has.indexOf(need) === -1;
+            });
+
+            var bedShortfall = Math.max(0, state.patient.minBeds - hospital.beds);
+
+            if (state.patient.bedType &&
+                hospital.has.indexOf(state.patient.bedType) === -1) {
+                missing.push(state.patient.bedType);
+            }
+
+            if (bedShortfall > 0) {
+                missing.push('Minimum ' + state.patient.minBeds + ' available beds');
+            }
+
+            var score = (wanted.length ? met.length / wanted.length : 1) * 100
+                - hospital.eta * 2
+                + Math.min(hospital.beds, 5);
+
+            score -= bedShortfall * 20;
+
+            if (state.patient.bedType &&
+                hospital.has.indexOf(state.patient.bedType) !== -1) {
+                score += 20;
+            }
+
+            return {
+                h: hospital,
+                met: met,
+                missing: missing,
+                score: score
+            };
+        }).sort(function (a, b) {
+            return b.score - a.score;
+        });
+
+        chooseHospital(0, true);
+        closeSheets();
+        openSheet('hospitalSheet');
+    }
+
+    function chooseHospital(index, first) {
+        var result = state.hospitals[index];
+        var hospital = result.h;
+
+        state.hospital = result;
+
+        $('#hName').textContent = hospital.name;
+        $('#hAddr').textContent = hospital.area + ', Chennai';
+        $('#matchPill').textContent = first ? 'Best match' : 'Selected by crew';
+
+        $('#mapHospital').innerHTML = routeSVG(
+            'Patient pickup',
+            hospital.name,
+            hospital.eta
+        );
+
+        $('#etaHospital').textContent = hospital.eta;
+        $('#distHospital').textContent = hospital.km + ' km';
+
+        factRows($('#hFacts'), [
+            ['Needs covered', result.met.length ? result.met.join(', ') : 'No specific needs entered'],
+            ['Not available', result.missing.length ? result.missing.join(', ') : 'None'],
+            ['Beds free in demo data', String(hospital.beds)],
+            ['Casualty desk', hospital.phone],
+            ['Blood group selected', state.patient.bloodGroups.length ? state.patient.bloodGroups.join(', ') : 'Not specified']
+        ]);
+
+        log((first ? 'Recommended hospital: ' : 'Hospital selected: ') + hospital.name);
+        renderAlternatives();
+    }
+
+    function renderAlternatives() {
+        var list = $('#alts');
+        list.innerHTML = '';
+
+        state.hospitals.forEach(function (result, index) {
+            if (result === state.hospital) {
+                return;
+            }
+
+            var li = document.createElement('li');
+            var left = document.createElement('div');
+            var name = document.createElement('strong');
+            var small = document.createElement('small');
+            var meta = document.createElement('span');
+            var button = document.createElement('button');
+
+            name.textContent = result.h.name;
+            small.textContent = result.h.area +
+                (result.missing.length ? ' — missing: ' + result.missing.join(', ') : ' — covers selected services');
+
+            left.appendChild(name);
+            left.appendChild(small);
+
+            meta.textContent = result.h.eta + ' min, ' + result.h.km + ' km';
+
+            button.type = 'button';
+            button.className = 'btn ghost';
+            button.textContent = 'Use this hospital';
+
+            button.onclick = function () {
+                chooseHospital(index, false);
+            };
+
+            li.appendChild(left);
+            li.appendChild(meta);
+            li.appendChild(button);
+            list.appendChild(li);
+        });
+    }
+
+    function buildNotice() {
+        var patient = state.patient;
+        var request = state.request;
+        var hospital = state.hospital.h;
+        var vitals = [];
+
+        if (patient.pulse) {
+            vitals.push('Pulse: ' + patient.pulse + ' bpm');
+        }
+
+        if (patient.bp) {
+            vitals.push('BP: ' + patient.bp);
+        }
+
+        if (patient.spo2) {
+            vitals.push('SpO2: ' + patient.spo2 + '%');
+        }
+
+        if (patient.temp) {
+            vitals.push('Temperature: ' + patient.temp + ' °C');
+        }
+
+        return [
+            'To: Casualty desk, ' + hospital.name,
+            'From: Unit ' + state.user.unit + ', ' + state.user.name,
+            'Expected arrival: about ' + hospital.eta + ' minutes',
+            '',
+            'Patient: ' + patient.name,
+            'Age: ' + (patient.age || 'Not recorded'),
+            'Sex: ' + (patient.sex || 'Not stated'),
+            'Reported problem: ' + request.complaint,
+            'Symptoms: ' + patient.symptoms,
+            'Consciousness: ' + patient.avpu,
+            'Vitals: ' + (vitals.length ? vitals.join(', ') : 'Not recorded'),
+            'Blood group: ' + (patient.bloodGroups.length ? patient.bloodGroups.join(', ') : 'Not recorded'),
+            'Required services/equipment: ' + (patient.needs.length ? patient.needs.join(', ') : 'General casualty assessment'),
+            'Treatment given: ' + (patient.given || 'None recorded')
+        ].join('\n');
+    }
+
+    function notifyHospital(hospital, message) {
+        state.notifiedAt = stamp();
+
+        $('#informChip').textContent = 'Hospital notification prepared at ' + state.notifiedAt;
+        $('#informChip').hidden = false;
+        $('#noticeText').textContent = message;
+        $('#noticeBox').hidden = false;
+        $('#noticeBox').open = false;
+
+        log('Demo notification prepared for ' + hospital.name);
+    }
+
+    $('#startHospitalBtn').onclick = function () {
+        var hospital = state.hospital.h;
+        var patient = state.patient;
+
+        notifyHospital(hospital, buildNotice());
+        closeSheets();
+
+        leg.key = 'hospital';
+
+        $('#phaseLine').textContent = 'Heading to hospital';
+        $('#destTitle').textContent = hospital.name;
+        $('#mainAction').textContent = 'Confirm patient handover';
+        $('#mainAction').disabled = false;
+        $('#skipBtn').hidden = false;
+
+        factRows($('#destFacts'), [
+            ['Hospital', hospital.name],
+            ['Address', hospital.area + ', Chennai'],
+            ['Casualty desk', hospital.phone],
+            ['Patient', patient.name],
+            ['Blood group', patient.bloodGroups.length ? patient.bloodGroups.join(', ') : 'Not specified'],
+            ['Prepared for', patient.needs.length ? patient.needs.join(', ') : 'General casualty assessment'],
+            ['Request', state.request.id]
+        ]);
+
+        startLeg({
+            key: 'hospital',
+            minutes: hospital.eta,
+            km: hospital.km,
+            from: 'Patient pickup',
+            to: hospital.name
+        });
+
+        $('#banner').textContent = 'Destination selected: ' + hospital.name + '.';
+        show('trip');
+    };
+
+    $('#doneYes').onclick = function () {
+        stopLeg();
+        $('#doneBox').hidden = true;
+
+        state.trips += 1;
+        $('#tripCount').textContent = state.trips;
+
+        log('Ride completed at ' + state.hospital.h.name);
+
+        state.request = null;
+        state.patient = null;
+        state.hospital = null;
+
+        setStatus('available', true);
+        show('dash');
+    };
+
+    $('#doneNo').onclick = function () {
+        $('#doneBox').hidden = true;
+        $('#banner').textContent = 'Confirm patient handover once it is complete.';
+    };
+
+    show('auth');
 })();

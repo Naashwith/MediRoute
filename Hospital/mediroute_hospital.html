@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediRoute | Hospital Portal</title>
+  <link rel="stylesheet" href="mediroute_hospital.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" id="brandHome"><span class="brand-icon">✚</span><span>MediRoute <small>Hospital Portal</small></span></a>
+    <span class="top-note">Ambulance Emergency Management System</span>
+  </header>
+
+  <main class="container">
+    <section id="homeView" class="view hero-layout">
+      <div class="hero-copy">
+        <span class="eyebrow">HOSPITAL RESOURCE NETWORK</span>
+        <h1>Be ready when<br><span>every second matters.</span></h1>
+        <p>Manage your hospital profile, medical staff, bed availability, equipment, and emergency services in one place.</p>
+        <div class="hero-points">
+          <div><span class="check">✓</span> Keep hospital information organized</div>
+          <div><span class="check">✓</span> Update resource availability anytime</div>
+          <div><span class="check">✓</span> Prepare for incoming emergencies</div>
+        </div>
+      </div>
+      <div class="choice-card">
+        <div class="medical-symbol">✚</div>
+        <h2>Welcome to MediRoute</h2>
+        <p>Choose how you want to continue.</p>
+        <button class="btn btn-primary full" id="goRegister">Register a Hospital <span>→</span></button>
+        <button class="btn btn-outline full" id="goLogin">Hospital Login <span>→</span></button>
+        <div class="secure-note">For hospital staff and administrators</div>
+      </div>
+    </section>
+
+    <section id="registerView" class="view hidden">
+      <button class="back-link" data-home>← Back to home</button>
+      <div class="page-heading"><span class="eyebrow">NEW HOSPITAL</span><h1>Register your hospital</h1><p>Enter your hospital details to create a portal account.</p></div>
+      <form id="registerForm">
+        <div class="form-section">
+          <div class="section-title"><span>01</span><div><h2>Basic hospital details</h2><p>Contact and location information</p></div></div>
+          <div class="form-grid">
+            <label class="wide">Hospital name *<input name="hospitalName" required placeholder="e.g. City Care Hospital"></label>
+            <label>Registration / license number<input name="license" placeholder="Hospital registration number"></label>
+            <label>Contact person's name *<input name="contactName" required placeholder="Full name"></label>
+            <label>Designation<input name="designation" placeholder="e.g. Hospital Administrator"></label>
+            <label>Phone number *<input name="phone" type="tel" required pattern="[0-9+\-\s]{8,16}" placeholder="+91 98765 43210"></label>
+            <label>Email address *<input name="email" type="email" required placeholder="admin@hospital.com"></label>
+            <label class="wide">Street address *<input name="address" required placeholder="Building, street, area"></label>
+            <label>City *<input name="city" required placeholder="City"></label>
+            <label>District<input name="district" placeholder="District"></label>
+            <label>State *<input name="state" required placeholder="State"></label>
+            <label>PIN code<input name="pin" inputmode="numeric" pattern="[0-9]{6}" placeholder="6-digit PIN code"></label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title"><span>02</span><div><h2>Specialties and doctors</h2><p>Select specialties and enter staffing information</p></div></div>
+          <div class="specialty-list">
+            <label class="check-option"><input type="checkbox" name="specialties" value="Cardiology"> Cardiology</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="Neurology"> Neurology</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="Orthopedics"> Orthopedics</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="Pediatrics"> Pediatrics</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="General Medicine"> General Medicine</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="Trauma Care"> Trauma Care</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="Surgery"> Surgery</label>
+            <label class="check-option"><input type="checkbox" name="specialties" value="Other"> Other</label>
+          </div>
+          <div class="form-grid compact-grid">
+            <label>Total doctors<input name="doctors" type="number" min="0" value="0"></label>
+            <label>Doctors currently available<input name="doctorsAvailable" type="number" min="0" value="0"></label>
+            <label>24/7 specialist service
+              <select name="specialist247"><option value="No">No</option><option value="Yes">Yes</option></select>
+            </label>
+          </div>
+          <label class="top-gap">Doctor details (optional)<textarea name="doctorDetails" rows="3" placeholder="Example: Dr. Rao — Cardiologist — Available; Dr. Kumar — Surgeon — On duty"></textarea></label>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title"><span>03</span><div><h2>Bed availability</h2><p>Current capacity and available beds</p></div></div>
+          <div class="form-grid four-grid">
+            <label>Total beds *<input name="totalBeds" type="number" min="0" value="0" required></label>
+            <label>Available beds *<input name="availableBeds" type="number" min="0" value="0" required></label>
+            <label>Occupied beds<input name="occupiedBeds" type="number" min="0" value="0"></label>
+            <label>Reserved beds<input name="reservedBeds" type="number" min="0" value="0"></label>
+            <label>ICU beds<input name="icuBeds" type="number" min="0" value="0"></label>
+            <label>Emergency beds<input name="emergencyBeds" type="number" min="0" value="0"></label>
+            <label>Trauma beds<input name="traumaBeds" type="number" min="0" value="0"></label>
+            <label>Isolation beds<input name="isolationBeds" type="number" min="0" value="0"></label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title"><span>04</span><div><h2>Medical equipment</h2><p>Enter quantities that are currently operational</p></div></div>
+          <div class="form-grid four-grid">
+            <label>Ventilators<input name="ventilators" type="number" min="0" value="0"></label>
+            <label>Defibrillators<input name="defibrillators" type="number" min="0" value="0"></label>
+            <label>Oxygen units<input name="oxygen" type="number" min="0" value="0"></label>
+            <label>ECG machines<input name="ecg" type="number" min="0" value="0"></label>
+            <label>Patient monitors<input name="monitors" type="number" min="0" value="0"></label>
+            <label>X-ray machines<input name="xray" type="number" min="0" value="0"></label>
+            <label>CT scanners<input name="ct" type="number" min="0" value="0"></label>
+            <label>MRI scanners<input name="mri" type="number" min="0" value="0"></label>
+            <label>Operation theatres<input name="theatres" type="number" min="0" value="0"></label>
+            <label>Blood bank units / capacity<input name="bloodBank" type="number" min="0" value="0"></label>
+          </div>
+          <label class="top-gap">Other equipment and notes<textarea name="otherEquipment" rows="2" placeholder="Equipment name, quantity, and status"></textarea></label>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title"><span>05</span><div><h2>Emergency services</h2><p>Services and current receiving capacity</p></div></div>
+          <div class="specialty-list">
+            <label class="check-option"><input type="checkbox" name="services" value="Emergency Department"> Emergency department</label>
+            <label class="check-option"><input type="checkbox" name="services" value="Trauma Care"> Trauma care</label>
+            <label class="check-option"><input type="checkbox" name="services" value="Emergency Surgery"> Emergency surgery</label>
+            <label class="check-option"><input type="checkbox" name="services" value="Laboratory"> Laboratory</label>
+            <label class="check-option"><input type="checkbox" name="services" value="Blood Bank"> Blood bank</label>
+            <label class="check-option"><input type="checkbox" name="services" value="24/7 Emergency"> 24/7 emergency</label>
+          </div>
+          <div class="form-grid">
+            <label>Emergency contact number<input name="emergencyPhone" type="tel" placeholder="Emergency department number"></label>
+            <label>Patients currently able to receive<input name="receivingCapacity" type="number" min="0" value="0"></label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title"><span>06</span><div><h2>Create login account</h2><p>Use these credentials to access your hospital portal</p></div></div>
+          <div class="form-grid">
+            <label>Email / username *<input name="username" required autocomplete="username" placeholder="Create a username or email"></label>
+            <label>Password *<input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="At least 6 characters"></label>
+            <label class="wide">Confirm password *<input name="confirmPassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Enter password again"></label>
+          </div>
+          <p class="demo-warning">Prototype notice: this demo stores information in this browser only. Do not enter real or sensitive hospital data.</p>
+        </div>
+        <div id="registerError" class="form-message error hidden"></div>
+        <div class="form-actions"><button type="button" class="btn btn-outline" data-home>Cancel</button><button class="btn btn-primary" type="submit">Create Hospital Account →</button></div>
+      </form>
+    </section>
+
+    <section id="loginView" class="view hidden">
+      <button class="back-link" data-home>← Back to home</button>
+      <div class="login-wrap">
+        <div class="login-art"><div class="medical-symbol large">✚</div><span class="eyebrow">WELCOME BACK</span><h1>Your hospital.<br>Your resources.<br><span>One place.</span></h1><p>Sign in to update hospital information and manage current availability.</p></div>
+        <form id="loginForm" class="login-card">
+          <h2>Hospital Login</h2><p>Enter your registered credentials.</p>
+          <label>Email / username<input name="username" required autocomplete="username" placeholder="Enter email or username"></label>
+          <label>Password<input name="password" type="password" required autocomplete="current-password" placeholder="Enter password"></label>
+          <div id="loginError" class="form-message error hidden"></div>
+          <button class="btn btn-primary full" type="submit">Login to Dashboard →</button>
+          <p class="center muted">New to MediRoute? <button class="text-button" type="button" id="loginRegister">Register hospital</button></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="dashboardView" class="view hidden">
+      <div class="dashboard-header">
+        <div><span class="eyebrow">HOSPITAL WORKSPACE</span><h1 id="dashboardName">Hospital Dashboard</h1><p id="dashboardLocation" class="muted"></p></div>
+        <div class="header-actions"><button class="btn btn-outline" id="updateButton">✎ Update Details</button><button class="btn btn-light" id="logoutButton">Log out</button></div>
+      </div>
+      <div class="stats-grid">
+        <article class="stat-card"><span class="stat-icon blue">▦</span><p>Total beds</p><strong id="statTotalBeds">0</strong><small>Registered capacity</small></article>
+        <article class="stat-card"><span class="stat-icon green">✓</span><p>Available beds</p><strong id="statAvailableBeds">0</strong><small>Current availability</small></article>
+        <article class="stat-card"><span class="stat-icon purple">✚</span><p>Doctors available</p><strong id="statDoctors">0</strong><small>Currently available</small></article>
+        <article class="stat-card"><span class="stat-icon orange">♡</span><p>Emergency capacity</p><strong id="statCapacity">0</strong><small>Patients receivable</small></article>
+      </div>
+      <div class="dashboard-grid">
+        <article class="panel"><div class="panel-heading"><div><h2>Hospital profile</h2><p>Your registered information</p></div><button class="text-button" id="profileEdit">Edit profile →</button></div><div id="profileDetails" class="detail-list"></div></article>
+        <article class="panel"><div class="panel-heading"><div><h2>Bed availability</h2><p>Current bed status</p></div><span class="pill green-pill">Resource overview</span></div><div id="bedDetails" class="resource-list"></div></article>
+        <article class="panel"><div class="panel-heading"><div><h2>Specialties & doctors</h2><p>Staffing summary</p></div></div><div id="doctorDetailsView" class="resource-list"></div></article>
+        <article class="panel"><div class="panel-heading"><div><h2>Equipment inventory</h2><p>Registered equipment quantities</p></div></div><div id="equipmentDetailsView" class="resource-list"></div></article>
+        <article class="panel full-panel"><div class="panel-heading"><div><h2>Emergency services</h2><p>Services and operational readiness</p></div></div><div id="servicesDetailsView" class="service-chips"></div></article>
+      </div>
+      <p class="last-updated" id="lastUpdated"></p>
+    </section>
+
+    <section id="updateView" class="view hidden">
+      <button class="back-link" id="cancelUpdateTop">← Back to dashboard</button>
+      <div class="page-heading"><span class="eyebrow">HOSPITAL WORKSPACE</span><h1>Update hospital details</h1><p>Edit your saved information. Changes update the existing hospital profile.</p></div>
+      <form id="updateForm">
+        <div class="form-section">
+          <div class="section-title"><span>01</span><div><h2>Basic hospital details</h2><p>Update contact and location information</p></div></div>
+          <div class="form-grid">
+            <label class="wide">Hospital name *<input name="hospitalName" required></label>
+            <label>Registration / license number<input name="license"></label>
+            <label>Contact person's name *<input name="contactName" required></label>
+            <label>Designation<input name="designation"></label>
+            <label>Phone number *<input name="phone" type="tel" required pattern="[0-9+\-\s]{8,16}"></label>
+            <label>Email address *<input name="email" type="email" required></label>
+            <label class="wide">Street address *<input name="address" required></label>
+            <label>City *<input name="city" required></label><label>District<input name="district"></label>
+            <label>State *<input name="state" required></label><label>PIN code<input name="pin" inputmode="numeric" pattern="[0-9]{6}"></label>
+          </div>
+        </div>
+        <div class="form-section">
+          <div class="section-title"><span>02</span><div><h2>Specialties and doctors</h2><p>Update medical specialties and staff availability</p></div></div>
+          <div class="specialty-list" id="updateSpecialties">
+            <label class="check-option"><input type="checkbox" name="specialties" value="Cardiology"> Cardiology</label><label class="check-option"><input type="checkbox" name="specialties" value="Neurology"> Neurology</label><label class="check-option"><input type="checkbox" name="specialties" value="Orthopedics"> Orthopedics</label><label class="check-option"><input type="checkbox" name="specialties" value="Pediatrics"> Pediatrics</label><label class="check-option"><input type="checkbox" name="specialties" value="General Medicine"> General Medicine</label><label class="check-option"><input type="checkbox" name="specialties" value="Trauma Care"> Trauma Care</label><label class="check-option"><input type="checkbox" name="specialties" value="Surgery"> Surgery</label><label class="check-option"><input type="checkbox" name="specialties" value="Other"> Other</label>
+          </div>
+          <div class="form-grid compact-grid"><label>Total doctors<input name="doctors" type="number" min="0"></label><label>Doctors currently available<input name="doctorsAvailable" type="number" min="0"></label><label>24/7 specialist service<select name="specialist247"><option value="No">No</option><option value="Yes">Yes</option></select></label></div>
+          <label class="top-gap">Doctor details<textarea name="doctorDetails" rows="3"></textarea></label>
+        </div>
+        <div class="form-section"><div class="section-title"><span>03</span><div><h2>Bed availability</h2><p>Keep counts current and consistent</p></div></div><div class="form-grid four-grid"><label>Total beds *<input name="totalBeds" type="number" min="0" required></label><label>Available beds *<input name="availableBeds" type="number" min="0" required></label><label>Occupied beds<input name="occupiedBeds" type="number" min="0"></label><label>Reserved beds<input name="reservedBeds" type="number" min="0"></label><label>ICU beds<input name="icuBeds" type="number" min="0"></label><label>Emergency beds<input name="emergencyBeds" type="number" min="0"></label><label>Trauma beds<input name="traumaBeds" type="number" min="0"></label><label>Isolation beds<input name="isolationBeds" type="number" min="0"></label></div></div>
+        <div class="form-section"><div class="section-title"><span>04</span><div><h2>Medical equipment</h2><p>Update quantities of operational equipment</p></div></div><div class="form-grid four-grid"><label>Ventilators<input name="ventilators" type="number" min="0"></label><label>Defibrillators<input name="defibrillators" type="number" min="0"></label><label>Oxygen units<input name="oxygen" type="number" min="0"></label><label>ECG machines<input name="ecg" type="number" min="0"></label><label>Patient monitors<input name="monitors" type="number" min="0"></label><label>X-ray machines<input name="xray" type="number" min="0"></label><label>CT scanners<input name="ct" type="number" min="0"></label><label>MRI scanners<input name="mri" type="number" min="0"></label><label>Operation theatres<input name="theatres" type="number" min="0"></label><label>Blood bank units / capacity<input name="bloodBank" type="number" min="0"></label></div><label class="top-gap">Other equipment and notes<textarea name="otherEquipment" rows="2"></textarea></label></div>
+        <div class="form-section"><div class="section-title"><span>05</span><div><h2>Emergency services</h2><p>Update services and receiving capacity</p></div></div><div class="specialty-list" id="updateServices"><label class="check-option"><input type="checkbox" name="services" value="Emergency Department"> Emergency department</label><label class="check-option"><input type="checkbox" name="services" value="Trauma Care"> Trauma care</label><label class="check-option"><input type="checkbox" name="services" value="Emergency Surgery"> Emergency surgery</label><label class="check-option"><input type="checkbox" name="services" value="Laboratory"> Laboratory</label><label class="check-option"><input type="checkbox" name="services" value="Blood Bank"> Blood bank</label><label class="check-option"><input type="checkbox" name="services" value="24/7 Emergency"> 24/7 emergency</label></div><div class="form-grid"><label>Emergency contact number<input name="emergencyPhone" type="tel"></label><label>Patients currently able to receive<input name="receivingCapacity" type="number" min="0"></label></div></div>
+        <div id="updateError" class="form-message error hidden"></div>
+        <div class="form-actions"><button type="button" class="btn btn-outline" id="cancelUpdate">Cancel changes</button><button class="btn btn-primary" type="submit">Save Changes ✓</button></div>
+      </form>
+    </section>
+    <div id="toast" class="toast hidden" role="status"></div>
+  </main>
+  <footer>MediRoute Hospital Portal <span>•</span> Student project prototype</footer>
+  <script src="mediroute_hospital.js"></script>
+</body>
+</html>

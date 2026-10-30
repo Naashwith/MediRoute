@@ -604,6 +604,7 @@ legend {
 }
 
 .map {
+    isolation: isolate;
     overflow: hidden;
     aspect-ratio: 2 / 1;
     border: 1px solid var(--line);
@@ -620,10 +621,50 @@ legend {
     aspect-ratio: 5 / 3;
 }
 
-.map svg {
+.map > svg {
     display: block;
     width: 100%;
     height: 100%;
+}
+
+.mk {
+    display: block;
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+}
+
+.mk-start {
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: #16845b;
+}
+
+.mk-end {
+    border: 2px solid #ffffff;
+    border-radius: 3px;
+    background: #c83e4d;
+}
+
+.mk-amb {
+    border: 4px solid #176b87;
+    border-radius: 50%;
+    background: #ffffff;
+}
+
+.mk-dev {
+    width: 14px;
+    height: 14px;
+    margin: 2px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: #2f7fc1;
+    box-shadow: 0 0 0 1px rgba(23, 43, 58, 0.25);
+}
+
+.leaflet-tooltip {
+    color: #172b3a;
+    font: 600 12px "Public Sans", sans-serif;
 }
 
 .progress {

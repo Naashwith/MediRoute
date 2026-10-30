@@ -40,7 +40,12 @@
         minutes: 0,
         km: 0,
         from: '',
-        to: ''
+        to: '',
+        token: 0,
+        route: null,
+        cum: null,
+        t0: 0,
+        duration: 0
     };
 
     /* The single road the ambulance drives along on every map.
@@ -70,6 +75,8 @@
         ['auth', 'dash', 'trip'].forEach(function (name) {
             $('#' + name).hidden = name !== id;
         });
+
+        window.scrollTo(0, 0);
     }
 
     function escapeHtml(value) {
@@ -235,6 +242,469 @@
             '</svg>';
     }
 
+    /* ---------- Geo helpers ---------- */
+
+    /* Demo area: Chennai. The ambulance base and the pickup point are fixed
+       demo coordinates; a live GPS fix replaces the base when it is usable. */
+    var DEMO_BASE = { lat: 13.0732, lng: 80.2609 };
+    var DEMO_PICKUP = { lat: 13.0418, lng: 80.2341 };
+    var DEMO_RADIUS_KM = 40;
+    var tileWarned = false;
+
+    /* OpenStreetMap's own tile server. Its usage policy needs a real web
+       address (http://localhost or https), so it refuses pages opened as a file.
+       To use another OSM-based tile provider, change these two lines only. */
+    var TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    var TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+    function haversineKm(a, b) {
+        var r = Math.PI / 180;
+        var dLat = (b.lat - a.lat) * r;
+        var dLng = (b.lng - a.lng) * r;
+        var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(a.lat * r) * Math.cos(b.lat * r) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+        return 2 * 6371 * Math.asin(Math.sqrt(h));
+    }
+
+    /* Straight line x 1.3 as a road factor, at an urban ambulance speed. */
+    function estimate(a, b) {
+        var km = haversineKm(a, b) * 1.3;
+        return { km: km, minutes: Math.max(1, Math.round(km / 35 * 60)) };
+    }
+
+    function pathPrep(coords) {
+        var cum = [0];
+        var i;
+
+        for (i = 1; i < coords.length; i++) {
+            cum.push(cum[i - 1] + haversineKm(
+                { lat: coords[i - 1][0], lng: coords[i - 1][1] },
+                { lat: coords[i][0], lng: coords[i][1] }
+            ));
+        }
+
+        return cum;
+    }
+
+    /* [lat, lng] lying `f` (0 to 1) of the way along the road path. */
+    function pointAt(coords, cum, f) {
+        var target = Math.max(0, Math.min(1, f)) * cum[cum.length - 1];
+        var i = 1;
+
+        while (i < cum.length - 1 && cum[i] < target) {
+            i++;
+        }
+
+        var seg = cum[i] - cum[i - 1];
+        var t = seg === 0 ? 0 : Math.max(0, Math.min(1, (target - cum[i - 1]) / seg));
+
+        return [
+            coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * t,
+            coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * t
+        ];
+    }
+
+    /* ---------- Road routing (OSRM public demo server) ---------- */
+
+    var routeCache = {};
+
+    /* Always resolves. Falls back to a straight dashed line when the
+       routing service is unreachable, so a trip can never get stuck. */
+    function fetchRoute(from, to) {
+        var key = [from.lat, from.lng, to.lat, to.lng].map(function (n) {
+            return n.toFixed(5);
+        }).join(',');
+
+        if (routeCache[key]) {
+            return Promise.resolve(routeCache[key]);
+        }
+
+        function fallback() {
+            var e = estimate(from, to);
+
+            return {
+                coords: [[from.lat, from.lng], [to.lat, to.lng]],
+                km: e.km,
+                minutes: e.minutes,
+                approx: true
+            };
+        }
+
+        if (!window.fetch) {
+            return Promise.resolve(fallback());
+        }
+
+        var ctl = window.AbortController ? new AbortController() : null;
+        var timer = setTimeout(function () {
+            if (ctl) {
+                ctl.abort();
+            }
+        }, 7000);
+
+        var url = 'https://router.project-osrm.org/route/v1/driving/' +
+            from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat +
+            '?overview=full&geometries=geojson';
+
+        return fetch(url, ctl ? { signal: ctl.signal } : {})
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+
+                return response.json();
+            })
+            .then(function (data) {
+                var found = data && data.routes && data.routes[0];
+
+                if (!found || !found.geometry || found.geometry.coordinates.length < 2) {
+                    throw new Error('No route');
+                }
+
+                var result = {
+                    coords: found.geometry.coordinates.map(function (c) {
+                        return [c[1], c[0]];
+                    }),
+                    km: found.distance / 1000,
+                    minutes: Math.max(1, Math.round(found.duration / 60)),
+                    approx: false
+                };
+
+                routeCache[key] = result;
+                return result;
+            })
+            .catch(fallback)
+            .then(function (result) {
+                clearTimeout(timer);
+                return result;
+            });
+    }
+
+    /* ---------- GPS tracking ---------- */
+
+    /* One continuous watch. states: off, searching, live, blocked.
+       The last fix is kept so a short signal drop shows its age instead
+       of silently freezing, and it is dropped completely when tracking stops. */
+    var gps = { id: null, fix: null, state: 'off', msg: '', tick: null };
+    var GPS_OPTIONS = { enableHighAccuracy: true, timeout: 15000, maximumAge: 3000 };
+
+    function gpsText() {
+        var fix = gps.fix;
+
+        if (gps.state === 'off') {
+            return { loc: 'Location not enabled.', line: 'GPS off, using simulated position.' };
+        }
+
+        if (gps.state === 'blocked') {
+            return { loc: gps.msg, line: 'GPS unavailable.' };
+        }
+
+        if (!fix) {
+            return { loc: gps.msg, line: gps.msg };
+        }
+
+        var age = Math.max(0, Math.round((Date.now() - fix.time) / 1000));
+        var acc = 'accuracy ' + Math.round(fix.accuracy) + ' m';
+        var coords = fix.lat.toFixed(5) + ', ' + fix.lng.toFixed(5);
+
+        if (age > 30) {
+            return {
+                loc: coords + ' (last update ' + age + ' s ago)',
+                line: 'GPS signal lost, last fix ' + age + ' s ago.'
+            };
+        }
+
+        return {
+            loc: coords + ' (' + acc + ')',
+            line: (fix.accuracy > 100 ? 'GPS weak, ' : 'GPS live, ') + acc + '.'
+        };
+    }
+
+    function renderGps() {
+        var text = gpsText();
+        var idle = gps.state === 'off' || gps.state === 'blocked';
+
+        $('#locState').textContent = text.loc;
+        $('#gpsLine').textContent = text.line;
+        $('#locBtn').textContent = idle ? 'Enable location' : 'Turn off location';
+    }
+
+    function stopGps(announce) {
+        if (gps.id !== null && navigator.geolocation) {
+            navigator.geolocation.clearWatch(gps.id);
+        }
+
+        if (gps.tick) {
+            clearInterval(gps.tick);
+        }
+
+        var wasOn = gps.id !== null;
+
+        gps.id = null;
+        gps.tick = null;
+        gps.fix = null;
+        gps.state = 'off';
+        gps.msg = '';
+
+        drawDevice();
+        renderGps();
+
+        if (announce && wasOn) {
+            log('Device location turned off');
+        }
+    }
+
+    function onGpsFix(position) {
+        var c = position.coords;
+
+        if (!isFinite(c.latitude) || !isFinite(c.longitude)) {
+            return;
+        }
+
+        var first = !gps.fix;
+
+        gps.fix = {
+            lat: c.latitude,
+            lng: c.longitude,
+            accuracy: isFinite(c.accuracy) ? c.accuracy : 0,
+            time: Date.now()
+        };
+        gps.state = 'live';
+
+        if (first) {
+            log('Device location enabled');
+        }
+
+        renderGps();
+        drawDevice();
+    }
+
+    function onGpsError(error) {
+        if (error.code === 1) {
+            stopGps(false);
+            gps.state = 'blocked';
+            gps.msg = 'Location permission denied. Allow it in the browser site settings, then try again.';
+            renderGps();
+            log('Location permission denied');
+            return;
+        }
+
+        /* Signal lost or timed out: the watch keeps retrying by itself. */
+        gps.msg = error.code === 3 ? 'GPS timed out, still trying.' : 'GPS signal unavailable, still trying.';
+        renderGps();
+    }
+
+    function startGps() {
+        if (gps.id !== null) {
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            gps.state = 'blocked';
+            gps.msg = 'Geolocation is not supported by this browser.';
+            renderGps();
+            return;
+        }
+
+        if (window.isSecureContext === false) {
+            gps.state = 'blocked';
+            gps.msg = 'Location needs a secure page (https or localhost).';
+            renderGps();
+            return;
+        }
+
+        gps.state = 'searching';
+        gps.msg = 'Searching for GPS signal...';
+        gps.id = navigator.geolocation.watchPosition(onGpsFix, onGpsError, GPS_OPTIONS);
+        gps.tick = setInterval(renderGps, 1000);
+        renderGps();
+    }
+
+    var FIX_WAIT_MS = 15000;
+    var NO_SHIFT = { lat: 0, lng: 0 };
+
+    /* The ambulance always starts at the device's live GPS position.
+       The demo pickup and hospitals sit in Chennai; if the device is more
+       than DEMO_RADIUS_KM from there, they are moved by the same offset so
+       the demo still plays out next to the device. Without a fix (GPS denied
+       or too slow) the demo base is used instead. */
+    function ambulanceStart(fix) {
+        if (!fix) {
+            return { lat: DEMO_BASE.lat, lng: DEMO_BASE.lng, live: false, shift: NO_SHIFT };
+        }
+
+        var inside = haversineKm(fix, DEMO_BASE) <= DEMO_RADIUS_KM;
+
+        return {
+            lat: fix.lat,
+            lng: fix.lng,
+            live: true,
+            accuracy: fix.accuracy,
+            shifted: !inside,
+            shift: inside ? NO_SHIFT : { lat: fix.lat - DEMO_BASE.lat, lng: fix.lng - DEMO_BASE.lng }
+        };
+    }
+
+    function place(point, shift) {
+        return { lat: point.lat + shift.lat, lng: point.lng + shift.lng };
+    }
+
+    function hospitalPoint(hospital) {
+        return place(hospital, state.request ? state.request.shift : NO_SHIFT);
+    }
+
+    /* Resolves with the current fix, or null if GPS is blocked, off or too slow. */
+    function waitForFix(ms) {
+        return new Promise(function (resolve) {
+            var began = Date.now();
+
+            (function poll() {
+                if (gps.fix) {
+                    resolve(gps.fix);
+                } else if (gps.state === 'blocked' || gps.state === 'off' || Date.now() - began >= ms) {
+                    resolve(null);
+                } else {
+                    setTimeout(poll, 200);
+                }
+            })();
+        });
+    }
+
+    /* ---------- OpenStreetMap views (Leaflet) ---------- */
+
+    var views = {};
+
+    function canMap() {
+        return typeof window.L === 'object' && typeof L.map === 'function';
+    }
+
+    function markerIcon(cls) {
+        return L.divIcon({
+            className: '',
+            html: '<span class="mk ' + cls + '"></span>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+        });
+    }
+
+    function getView(id) {
+        if (!canMap()) {
+            return null;
+        }
+
+        if (views[id]) {
+            return views[id];
+        }
+
+        var el = $('#' + id);
+        el.innerHTML = '';
+
+        /* Wheel zoom is off so scrolling the page over the map cannot zoom it out. */
+        var map = L.map(el, { scrollWheelZoom: false }).setView([DEMO_BASE.lat, DEMO_BASE.lng], 12);
+        var tiles = L.tileLayer(TILE_URL, {
+            maxZoom: 19,
+            attribution: TILE_ATTRIBUTION
+        }).addTo(map);
+
+        tiles.on('tileerror', function () {
+            if (!tileWarned) {
+                tileWarned = true;
+                log(location.protocol === 'file:' ?
+                    'Map tiles are refused when the page is opened as a file. Open it through http://localhost instead.' :
+                    'Map tiles could not be loaded. Check the internet connection.');
+            }
+        });
+
+        views[id] = { map: map, layer: L.layerGroup().addTo(map), amb: null, dev: null, acc: null };
+        drawDevice();
+
+        return views[id];
+    }
+
+    /* Draws the road path, both end markers and the ambulance at fraction f.
+       Skipped while the container is hidden (Leaflet cannot size it). */
+    function drawRoute(id, route, from, to, f) {
+        var v = getView(id);
+
+        if (!v || !$('#' + id).offsetWidth) {
+            return false;
+        }
+
+        v.map.invalidateSize();
+        v.layer.clearLayers();
+
+        var line = L.polyline(route.coords, {
+            color: '#176b87',
+            weight: 5,
+            dashArray: route.approx ? '2 10' : null
+        }).addTo(v.layer);
+
+        L.marker(route.coords[0], { icon: markerIcon('mk-start'), keyboard: false })
+            .bindTooltip(escapeHtml(from), { permanent: true, direction: 'bottom', offset: [0, 8] })
+            .addTo(v.layer);
+
+        L.marker(route.coords[route.coords.length - 1], { icon: markerIcon('mk-end'), keyboard: false })
+            .bindTooltip(escapeHtml(to), { permanent: true, direction: 'top', offset: [0, -8] })
+            .addTo(v.layer);
+
+        v.amb = L.marker(pointAt(route.coords, pathPrep(route.coords), f), {
+            icon: markerIcon('mk-amb'),
+            keyboard: false,
+            zIndexOffset: 500
+        }).addTo(v.layer);
+
+        v.map.fitBounds(line.getBounds(), { padding: [40, 40], maxZoom: 16 });
+
+        /* Safety net: if the fit ever lands at world level, centre on the route. */
+        if (v.map.getZoom() < 8) {
+            v.map.setView(line.getBounds().getCenter(), 13);
+        }
+
+        return true;
+    }
+
+    function drawDevice() {
+        Object.keys(views).forEach(function (id) {
+            var v = views[id];
+
+            if (!gps.fix) {
+                if (v.dev) {
+                    v.map.removeLayer(v.dev);
+                    v.map.removeLayer(v.acc);
+                    v.dev = null;
+                    v.acc = null;
+                }
+
+                return;
+            }
+
+            var at = [gps.fix.lat, gps.fix.lng];
+
+            if (!v.dev) {
+                v.acc = L.circle(at, {
+                    radius: gps.fix.accuracy,
+                    color: '#2f7fc1',
+                    weight: 1,
+                    fillOpacity: 0.12,
+                    interactive: false
+                }).addTo(v.map);
+                v.dev = L.marker(at, { icon: markerIcon('mk-dev'), interactive: false, keyboard: false }).addTo(v.map);
+            } else {
+                v.acc.setLatLng(at);
+                v.acc.setRadius(gps.fix.accuracy);
+                v.dev.setLatLng(at);
+            }
+        });
+    }
+
+    function clearViews() {
+        Object.keys(views).forEach(function (id) {
+            views[id].layer.clearLayers();
+            views[id].amb = null;
+        });
+    }
+
     /* ---------- Sign in / account ---------- */
 
     function showTab(which) {
@@ -378,6 +848,11 @@
         }
 
         stopLeg();
+        stopGps(false);
+        clearViews();
+        simToken++;
+        simPending = false;
+        $('#simBtn').disabled = false;
         closeSheets();
         $('#doneBox').hidden = true;
         $('#bar').hidden = true;
@@ -413,35 +888,24 @@
     });
 
     $('#locBtn').onclick = function () {
-        if (!navigator.geolocation) {
-            $('#locState').textContent = 'Geolocation is not supported by this browser.';
-            return;
+        if (gps.state === 'off' || gps.state === 'blocked') {
+            startGps();
+        } else {
+            stopGps(true);
         }
-
-        $('#locState').textContent = 'Requesting location permission...';
-
-        navigator.geolocation.getCurrentPosition(
-            function (position) {
-                var latitude = position.coords.latitude.toFixed(5);
-                var longitude = position.coords.longitude.toFixed(5);
-
-                $('#locState').textContent = latitude + ', ' + longitude;
-                $('#gpsLine').textContent = 'GPS location received from device.';
-                log('Device location enabled');
-            },
-            function () {
-                $('#locState').textContent = 'Location permission denied or unavailable.';
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000
-            }
-        );
     };
 
     /* ---------- Incoming request ---------- */
 
+    var simToken = 0;
+    var simPending = false;
+
+    /* Turns GPS on if needed, waits for the first fix, then starts the request. */
     $('#simBtn').onclick = function () {
+        if (simPending) {
+            return;
+        }
+
         if (state.request || state.status === 'busy') {
             $('#waitLine').textContent = 'Complete the current assignment before accepting another request.';
             return;
@@ -452,14 +916,42 @@
             return;
         }
 
+        var token = ++simToken;
+
+        simPending = true;
+        $('#simBtn').disabled = true;
+        $('#waitLine').textContent = 'Getting your GPS location for the ambulance...';
+
+        startGps();
+
+        waitForFix(FIX_WAIT_MS).then(function (fix) {
+            if (token !== simToken) {
+                return;
+            }
+
+            simPending = false;
+            $('#simBtn').disabled = false;
+
+            if (!state.user || state.request || state.status !== 'available') {
+                return;
+            }
+
+            beginRequest(fix);
+        });
+    };
+
+    function beginRequest(fix) {
+        var start = ambulanceStart(fix);
+
         state.request = {
             id: 'REQ-' + Date.now().toString().slice(-6),
             caller: 'Dispatch centre',
             address: 'Emergency pickup location',
             complaint: 'Emergency medical assistance requested',
             priority: 'Priority 1',
-            eta: 8,
-            km: 3.2
+            shift: start.shift,
+            pickup: place(DEMO_PICKUP, start.shift),
+            start: start
         };
 
         /* Clean slate for every new assignment so nothing from the
@@ -496,56 +988,99 @@
         log('Emergency request received: ' + state.request.id);
         show('trip');
 
+        if (start.live) {
+            log('Ambulance placed at your live GPS position (accuracy ' + Math.round(start.accuracy) + ' m)');
+
+            if (start.shifted) {
+                log('You are outside the Chennai demo area, so the demo pickup and hospitals were moved next to you');
+            }
+        } else {
+            log('GPS unavailable, ambulance placed at the demo base');
+        }
+
         startLeg({
             key: 'pickup',
-            minutes: state.request.eta,
-            km: state.request.km,
+            start: state.request.start,
+            end: state.request.pickup,
             from: 'Ambulance',
             to: 'Patient'
         });
-    };
+    }
 
     /* ---------- Travel legs ---------- */
 
     function paintLeg() {
         var fraction = Math.min(1, leg.p);
-        var remainingMinutes = Math.ceil(leg.minutes * (1 - fraction));
-        var remainingKm = (leg.km * (1 - fraction)).toFixed(1);
 
-        $('#etaMain').textContent = remainingMinutes;
-        $('#distMain').textContent = remainingKm;
+        $('#etaMain').textContent = Math.ceil(leg.minutes * (1 - fraction));
+        $('#distMain').textContent = (leg.km * (1 - fraction)).toFixed(1);
         $('#progFill').style.width = (fraction * 100) + '%';
-        $('#mapMain').innerHTML = routeSVG(leg.from, leg.to, fraction);
+
+        if (canMap()) {
+            var v = views.mapMain;
+
+            if (v && v.amb) {
+                v.amb.setLatLng(pointAt(leg.route.coords, leg.cum, fraction));
+            }
+        } else {
+            $('#mapMain').innerHTML = routeSVG(leg.from, leg.to, fraction);
+        }
     }
 
+    /* Looks up the road route first, then drives the marker along it.
+       The token drops late answers if the trip was stopped or replaced. */
     function startLeg(options) {
         stopLeg();
+
+        var token = ++leg.token;
 
         leg.key = options.key;
         leg.p = 0;
         leg.arrived = false;
-        leg.minutes = options.minutes;
-        leg.km = options.km;
+        leg.route = null;
         leg.from = options.from;
         leg.to = options.to;
 
-        paintLeg();
+        $('#etaMain').textContent = '--';
+        $('#distMain').textContent = '--';
+        $('#progFill').style.width = '0%';
 
-        leg.timer = setInterval(function () {
-            leg.p += 1 / Math.max(1, leg.minutes * 2);
-
-            if (leg.p >= 0.999999) {
-                leg.p = 1;
-                paintLeg();
-                arriveLeg();
+        fetchRoute(options.start, options.end).then(function (route) {
+            if (token !== leg.token || !state.request) {
                 return;
             }
 
+            leg.route = route;
+            leg.cum = pathPrep(route.coords);
+            leg.minutes = route.minutes;
+            leg.km = route.km;
+
+            /* One simulated minute plays as one second, between 6 and 30 s.
+               Elapsed time is used so a throttled background tab cannot stall it. */
+            leg.duration = Math.max(6, Math.min(30, route.minutes)) * 1000;
+            leg.t0 = Date.now();
+
+            if (route.approx) {
+                log('Road routing unavailable, showing a straight-line estimate');
+            }
+
+            drawRoute('mapMain', route, leg.from, leg.to, 0);
             paintLeg();
-        }, 500);
+
+            leg.timer = setInterval(function () {
+                leg.p = Math.min(1, (Date.now() - leg.t0) / leg.duration);
+                paintLeg();
+
+                if (leg.p >= 1) {
+                    arriveLeg();
+                }
+            }, 250);
+        });
     }
 
     function stopLeg() {
+        leg.token++;
+
         if (leg.timer) {
             clearInterval(leg.timer);
             leg.timer = null;
@@ -607,6 +1142,7 @@
         }
 
         leg.p = 1;
+        leg.t0 = Date.now() - leg.duration;
         paintLeg();
         arriveLeg();
     };
@@ -770,8 +1306,8 @@
             name: 'Government General Hospital',
             area: 'Park Town',
             phone: '044 2530 5000',
-            km: 7.4,
-            eta: 16,
+            lat: 13.0813,
+            lng: 80.2757,
             beds: 6,
             has: [
                 'Emergency/Casualty', '24/7 specialist service',
@@ -788,8 +1324,8 @@
             name: 'Southern Heart Institute',
             area: 'Adyar',
             phone: '044 2491 1100',
-            km: 3.9,
-            eta: 9,
+            lat: 13.0050,
+            lng: 80.2575,
             beds: 3,
             has: [
                 'Emergency/Casualty', '24/7 specialist service',
@@ -804,8 +1340,8 @@
             name: 'Lakeside Trauma Centre',
             area: 'Guindy',
             phone: '044 2234 7788',
-            km: 5.6,
-            eta: 12,
+            lat: 13.0100,
+            lng: 80.2210,
             beds: 4,
             has: [
                 'Emergency/Casualty', '24/7 specialist service',
@@ -820,8 +1356,8 @@
             name: 'St. Matthew Community Hospital',
             area: 'Velachery',
             phone: '044 2259 3030',
-            km: 2.7,
-            eta: 6,
+            lat: 12.9815,
+            lng: 80.2180,
             beds: 8,
             has: [
                 'Emergency/Casualty', 'Maternity', 'Pediatrics',
@@ -859,10 +1395,14 @@
                 missing.push('Minimum ' + state.patient.minBeds + ' available beds');
             }
 
+            var est = estimate(state.request.pickup, hospitalPoint(hospital));
+
             return {
                 h: hospital,
                 met: met,
-                missing: unique(missing)
+                missing: unique(missing),
+                eta: est.minutes,
+                km: Math.round(est.km * 10) / 10
             };
         }).sort(function (a, b) {
             /* A hospital that can treat the patient always outranks a closer
@@ -871,17 +1411,20 @@
                 return a.missing.length - b.missing.length;
             }
 
-            if (a.h.eta !== b.h.eta) {
-                return a.h.eta - b.h.eta;
+            if (a.eta !== b.eta) {
+                return a.eta - b.eta;
             }
 
             return b.h.beds - a.h.beds;
         });
 
-        chooseHospital(0);
+        /* The sheet must be visible before the preview map is drawn. */
         closeSheets();
         openSheet('hospitalSheet');
+        chooseHospital(0);
     }
+
+    var previewToken = 0;
 
     function chooseHospital(index) {
         var result = state.hospitals[index];
@@ -901,15 +1444,36 @@
 
         $('#matchPill').className = result.missing.length ? 'pill warn' : 'pill';
 
-        /* Preview map: the ambulance waits at the start of the route. */
-        $('#mapHospital').innerHTML = routeSVG(
-            'Patient pickup',
-            hospital.name,
-            0
-        );
+        /* Preview map: the ambulance waits at the start of the route.
+           A straight dashed line shows at once, then the road route replaces it. */
+        var pickup = state.request.pickup;
+        var target = hospitalPoint(hospital);
+        var token = ++previewToken;
 
-        $('#etaHospital').textContent = hospital.eta;
-        $('#distHospital').textContent = hospital.km + ' km';
+        if (canMap()) {
+            drawRoute('mapHospital', {
+                coords: [[pickup.lat, pickup.lng], [target.lat, target.lng]],
+                approx: true
+            }, 'Patient pickup', hospital.name, 0);
+        } else {
+            $('#mapHospital').innerHTML = routeSVG('Patient pickup', hospital.name, 0);
+        }
+
+        $('#etaHospital').textContent = result.eta;
+        $('#distHospital').textContent = result.km.toFixed(1) + ' km';
+
+        fetchRoute(pickup, target).then(function (route) {
+            if (token !== previewToken || state.hospital !== result) {
+                return;
+            }
+
+            result.eta = route.minutes;
+            result.km = Math.round(route.km * 10) / 10;
+            $('#etaHospital').textContent = result.eta;
+            $('#distHospital').textContent = result.km.toFixed(1) + ' km';
+            drawRoute('mapHospital', route, 'Patient pickup', hospital.name, 0);
+            renderAlternatives();
+        });
 
         var rows = [
             ['Needs covered', result.met.length ? result.met.join(', ') : 'No specific needs entered'],
@@ -952,7 +1516,7 @@
             left.appendChild(name);
             left.appendChild(small);
 
-            meta.textContent = result.h.eta + ' min, ' + result.h.km + ' km';
+            meta.textContent = 'about ' + result.eta + ' min, ' + result.km.toFixed(1) + ' km';
 
             button.type = 'button';
             button.className = 'btn ghost';
@@ -995,7 +1559,7 @@
             'To: Casualty desk, ' + hospital.name,
             'From: Unit ' + state.user.unit + ', ' + state.user.name,
             'Request: ' + request.id + ' (' + request.priority + ')',
-            'Expected arrival: about ' + hospital.eta + ' minutes',
+            'Expected arrival: about ' + state.hospital.eta + ' minutes',
             '',
             'Patient: ' + patient.name,
             'Age: ' + (patient.age || 'Not recorded'),
@@ -1056,8 +1620,8 @@
 
         startLeg({
             key: 'hospital',
-            minutes: hospital.eta,
-            km: hospital.km,
+            start: state.request.pickup,
+            end: hospitalPoint(hospital),
             from: 'Patient pickup',
             to: hospital.name
         });
@@ -1089,6 +1653,7 @@
         leg.arrived = false;
         leg.p = 0;
 
+        clearViews();
         resetTripUI();
         setStatus('available', true);
         show('dash');
@@ -1099,5 +1664,6 @@
         setBanner('Confirm patient handover once it is complete.');
     };
 
+    renderGps();
     show('auth');
 })();

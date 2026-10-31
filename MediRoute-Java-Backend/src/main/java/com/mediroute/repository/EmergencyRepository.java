@@ -1,0 +1,1 @@
+package com.mediroute.repository; import com.mediroute.entity.Emergency; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface EmergencyRepository extends JpaRepository<Emergency,Long>{Optional<Emergency> findTopByOrderByCreatedAtDesc(); List<Emergency> findAllByOrderByCreatedAtDesc();}
